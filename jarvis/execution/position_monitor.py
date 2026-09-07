@@ -18,7 +18,7 @@ Management capabilities:
 import time
 import logging
 import threading
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any, Set, Tuple
 from datetime import datetime, timezone
 
 from jarvis.data.schemas import PositionSnapshot, MarketContext, AccountSnapshot, MarketRegime

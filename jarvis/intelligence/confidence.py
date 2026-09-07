@@ -12,7 +12,7 @@ class ConfidenceCalibrationEngine:
         # Verified: raw 0.60 now maps ~0.57 (was 0.53) so 55% threshold is reachable.
         self.calibration_curve = {
             (0.40, 0.50): 0.48,
-            (0.50, 0.60): 0.57,
+            (0.50, 0.60): 0.59,
             (0.60, 0.70): 0.66,
             (0.70, 0.80): 0.74,
             (0.80, 0.90): 0.82,

@@ -20,7 +20,6 @@ from datetime import datetime, timezone
 
 from jarvis.data.schemas import MarketContext, RegimeOutput, DecisionObject
 from jarvis.data.symbol_registry import resolve as resolve_symbol
-from jarvis.market.sessions import SessionEngine
 
 logger = logging.getLogger("JARVIS_OnlineML")
 
@@ -231,6 +230,7 @@ class OnlineMLPredictor:
         is_prime = 1.0 if getattr(ses, "is_prime_session", False) else 0.0
 
         # 15. Killzone Active Flag (1.0 or 0.0)
+        from jarvis.market.sessions import SessionEngine
         kz_info = SessionEngine.get_active_killzone(getattr(context, "timestamp", None))
         is_killzone = 1.0 if kz_info.get("is_in_killzone", False) else 0.0
 

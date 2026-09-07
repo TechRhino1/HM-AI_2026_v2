@@ -332,10 +332,6 @@ class JarvisOrchestrator:
             decision.decision = "WAIT"
             decision.execution_authorized = False
             auth_res = {"authorized": False, "reason": f"CONFIDENCE_GATE: {decision.model_confidence:.2f} < {MIN_CONFIDENCE} minimum"}
-        elif decision.decision == "EXECUTE" and not is_forex and decision.adversarial_penalty == 0.0 and decision.expected_value > 1.0:
-            decision.decision = "WAIT"
-            decision.execution_authorized = False
-            auth_res = {"authorized": False, "reason": "OVERCONFIDENCE_GUARD: Zero devil penalty with high EV is suspicious."}
         else:
             auth_res = {"authorized": decision.decision == "EXECUTE"}
 

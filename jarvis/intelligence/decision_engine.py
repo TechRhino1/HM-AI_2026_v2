@@ -62,7 +62,7 @@ class DecisionEngine:
         master_confluence: Optional[MasterConfluenceEngine] = None,
         dynamic_levels_engine: Optional[DynamicRiskAndLevelsEngine] = None,
         min_ev_hurdle: float = 0.50,
-        max_devil_penalty: float = 38.0
+        max_devil_penalty: float = 43.0
     ):
         self.strategy_selector = strategy_selector or StrategySelector()
         self.hypothesis_engine = hypothesis_engine or HypothesisEngine()
@@ -261,7 +261,7 @@ class DecisionEngine:
 
         spread_penalty = 0.02 * min(2.0, max(0.0, spread_ratio - 1.0))
         if is_fx:
-            base_safety_margin = 0.287  # Forex requires 62% win prob at 2.0R
+            base_safety_margin = 0.240  # Forex requires 57% win prob at 2.0R
         elif is_gold or is_crypto or is_jpy:
             base_safety_margin = 0.265  # Gold/Crypto/JPY requires 60% win prob at 2.0R
         elif is_micro_mode:
@@ -288,8 +288,8 @@ class DecisionEngine:
             base_score = 65.0
             floor_score_opt = 62.0
         else:
-            base_score = 78.0 if is_fx else 68.0
-            floor_score_opt = 76.0 if is_fx else 65.0
+            base_score = 72.0 if is_fx else 68.0
+            floor_score_opt = 67.0 if is_fx else 65.0
 
         if not is_fx and ev >= 1.5 and rr_ratio >= 2.0:
             base_score = max(58.0, base_score - 4.0)
@@ -423,7 +423,7 @@ class DecisionEngine:
         is_mkt_open = mkt_status.get("is_open", True)
 
         of_trap = context.order_flow.get("absorption_trap") if hasattr(context, "order_flow") and isinstance(context.order_flow, dict) else None
-        is_of_trap = (tentative_bias == "BUY" and of_trap == "BUYER_ABSORPTION_TRAP") or (tentative_bias == "SELL" and of_trap == "SELLER_ABSORPTION_TRAP")
+        is_of_trap = (tentative_bias == "BUY" and of_trap == "SELLER_ABSORPTION_TRAP") or (tentative_bias == "SELL" and of_trap == "BUYER_ABSORPTION_TRAP")
         kz_active = SessionEngine.is_forex_killzone_active(getattr(context, "timestamp", None))
         
 
@@ -440,7 +440,7 @@ class DecisionEngine:
                 or (context.session.is_prime_session if hasattr(context, "session") and context.session else False)
                 or is_micro_mode
                 or "SCALP" in t_style_check
-                or (spread <= spec.typical_spread_pips * 1.2 and ai_score >= 75.0 and calibrated_win_p >= 0.58)
+                or (spread <= spec.typical_spread_pips * 1.2 and ai_score >= 70.0 and calibrated_win_p >= 0.55)
             )
 
         # 6. Gold (XAUUSD) Trend Following Gate: Require sweep confirmation or pullback to discount/premium
@@ -508,12 +508,13 @@ class DecisionEngine:
         if is_jpy:
             d1_b = mtf_align.get("D1", "NEUTRAL") if isinstance(mtf_align, dict) else "NEUTRAL"
             ts_v = getattr(context.momentum, "trend_score", 0.0) if hasattr(context, "momentum") else 0.0
+            adx_v = getattr(context.momentum, "adx", 0.0) if hasattr(context, "momentum") else 0.0
             if tentative_bias == "SELL" and not (d1_b == "BEARISH" and ts_v <= -30.0):
                 jpy_momentum_valid = False
-            else:
-                adx_v = getattr(context.momentum, "adx", 0.0) if hasattr(context, "momentum") else 0.0
-                if adx_v < 18.0 and abs(ts_v) < 15.0:
-                    jpy_momentum_valid = False
+            elif adx_v < 18.0 and abs(ts_v) < 15.0:
+                jpy_momentum_valid = False
+            elif ai_score < 72.0 or calibrated_win_p < 0.62:
+                jpy_momentum_valid = False
 
         # 12. High-Beta Crypto (SOLUSD) Confluence Guard
         sol_confluence_valid = True
@@ -533,9 +534,9 @@ class DecisionEngine:
             if of_res.get("institutional_activity", False) and of_res.get("signal") not in ("NEUTRAL", tentative_bias):
                 order_flow_aligned = False
             trap = of_res.get("absorption_trap")
-            if trap == "BUYER_ABSORPTION_TRAP" and tentative_bias == "BUY":
+            if trap == "SELLER_ABSORPTION_TRAP" and tentative_bias == "BUY":
                 order_flow_aligned = False
-            elif trap == "SELLER_ABSORPTION_TRAP" and tentative_bias == "SELL":
+            elif trap == "BUYER_ABSORPTION_TRAP" and tentative_bias == "SELL":
                 order_flow_aligned = False
 
         # 15. Strategy Viability Guard (Strictly preserves Gold)
@@ -767,7 +768,7 @@ class DecisionEngine:
         elif any(x in t_style for x in ("DAY", "INTRADAY")):
             _min_confluence = 24
         elif _is_forex(context.symbol):
-            _min_confluence = 30
+            _min_confluence = 24
         else:
             _min_confluence = 26
 
@@ -962,11 +963,22 @@ class DecisionEngine:
                 failing_reasons = quality_gate.failing_reasons
                 gate_passed = quality_gate.passed
 
-        # ---- Strict Quality Gates: No soft gate bypass allowed ----
-        if not gate_passed:
-            gate_policy_decision = "BLOCK"
-        else:
+        # ---- Adaptive Quality-Gate Policy: Allow soft-gate bypass when no hard gates fail ----
+        softened_gates: List[str] = []
+        if gate_passed:
             gate_policy_decision = "PASS"
+        else:
+            _hard_fails = [g for g in failing_reasons if g in HARD_GATES]
+            _soft_fails = [g for g in failing_reasons if g not in HARD_GATES]
+            if not _hard_fails and len(_soft_fails) <= self.gate_policy.max_soft_fail:
+                gate_policy_decision = "SOFTEN"
+                softened_gates = _soft_fails
+                _penalty = self.gate_policy.confidence_penalty(softened_gates)
+                calibrated_win_p = max(0.05, calibrated_win_p - _penalty)
+                gate_passed = True
+                logger.info(f"[QualityGate] SOFTENED {len(softened_gates)} gates (confidence penalty: -{_penalty:.3f})")
+            else:
+                gate_policy_decision = "BLOCK"
 
         if not is_mkt_open:
             decision_action = "NO_TRADE"

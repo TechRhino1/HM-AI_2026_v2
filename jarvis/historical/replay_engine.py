@@ -6,7 +6,7 @@ feeding simulated data feeds and executing orders in a strictly isolated broker 
 import time
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any, Optional, Callable, Tuple
 from datetime import datetime, timezone
 import pandas as pd
 import numpy as np

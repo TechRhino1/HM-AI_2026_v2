@@ -53,9 +53,9 @@ class RealtimeOptimizer:
             wins = sum(1 for r in rows if r[0] is not None and float(r[0]) > 0)
             win_rate = wins / len(rows)
             if win_rate < 0.50:
-                adj = {"win_p_delta": 0.03, "score_delta": 3.0, "rr_delta": 0.10}
+                adj = {"win_p_delta": 0.0, "score_delta": 0.0, "rr_delta": 0.0}
             elif win_rate < 0.55:
-                adj = {"win_p_delta": 0.02, "score_delta": 2.0, "rr_delta": 0.05}
+                adj = {"win_p_delta": 0.0, "score_delta": 0.0, "rr_delta": 0.0}
             elif win_rate > 0.68:
                 adj = {"win_p_delta": -0.02, "score_delta": -2.0, "rr_delta": -0.05}
             elif win_rate > 0.62:

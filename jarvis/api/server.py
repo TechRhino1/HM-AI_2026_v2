@@ -9,7 +9,7 @@ import mimetypes
 from datetime import datetime, timezone
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
-from typing import Any, Optional, Dict
+from typing import Any, Optional, Dict, Tuple
 
 from jarvis.application.state_manager import StateManager, GLOBAL_STATE
 import threading

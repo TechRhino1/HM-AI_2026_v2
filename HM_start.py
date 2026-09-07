@@ -45,7 +45,9 @@ _TUNNEL_STATE = {
     "cloudflare_status": "STARTING",
     "url": "https://hm2026.serveousercontent.com",
     "status": "STARTING",
-    "provider": "Dual Tunnel (Serveo + Cloudflare)"
+    "provider": "Dual Tunnel (Serveo + Cloudflare)",
+    "serveo_proc": None,
+    "cloudflare_proc": None
 }
 
 def get_local_wifi_ip():
@@ -117,6 +119,7 @@ def _serveo_worker(port: int = 8501, custom_subdomain: str = "hm2026"):
                 encoding="utf-8",
                 errors="replace"
             )
+            _TUNNEL_STATE["serveo_proc"] = proc
             for _ in range(40):
                 line = proc.stdout.readline()
                 if not line:
@@ -163,6 +166,7 @@ def _cloudflare_worker(port: int = 8501):
                 encoding="utf-8",
                 errors="replace"
             )
+            _TUNNEL_STATE["cloudflare_proc"] = proc
             for _ in range(50):
                 line = proc.stdout.readline()
                 if not line:
@@ -235,11 +239,13 @@ def hm_start(mode: str = "live", port: int = 8501, host: str = "0.0.0.0", trade_
         except KeyboardInterrupt:
             logger.info("Shutting down HM AI 4.0 trading platform...")
             orchestrator.stop()
-            if _TUNNEL_STATE["proc"]:
-                try:
-                    _TUNNEL_STATE["proc"].terminate()
-                except Exception:
-                    pass
+            for proc_key in ("serveo_proc", "cloudflare_proc"):
+                proc = _TUNNEL_STATE.get(proc_key)
+                if proc:
+                    try:
+                        proc.terminate()
+                    except Exception:
+                        pass
             print("\n[SHUTDOWN] HM AI 4.0 stopped cleanly.", flush=True)
             break
         except Exception as e:
