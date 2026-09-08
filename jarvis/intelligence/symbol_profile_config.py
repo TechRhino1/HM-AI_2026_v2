@@ -61,25 +61,25 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         symbol="BTCUSD",
         canonical="BTCUSD",
         asset_class="CRYPTO",
-        # Bitcoin: Multi-strategy approach — trend pullback + momentum continuation + breakout
+        # Bitcoin: Mean-reversion + breakout for choppy markets; reduce momentum
         strategy_weights={
-            "TREND_PULLBACK": 3.0,
-            "MOMENTUM_CONTINUATION": 2.8,
-            "BREAKOUT_EXPANSION": 2.0,
-            "TREND_FOLLOWING": 1.5,
-            "CHOCH_STRUCTURAL_REVERSAL": 1.2,
-            "LIQUIDITY_SWEEP_REVERSAL": 0.0,
-            "RANGE_MEAN_REVERSION": 0.0,
+            "RANGE_MEAN_REVERSION": 3.0,
+            "BREAKOUT_EXPANSION": 2.5,
+            "TREND_FOLLOWING": 2.0,
+            "CHOCH_STRUCTURAL_REVERSAL": 1.5,
+            "LIQUIDITY_SWEEP_REVERSAL": 1.0,
+            "MOMENTUM_CONTINUATION": 1.0,
+            "TREND_PULLBACK": 0.0,
         },
-        banned_strategies=["LIQUIDITY_SWEEP_REVERSAL", "RANGE_MEAN_REVERSION"],
-        sl_atr_multiplier=2.80,  # Wider SL for BTC volatility
-        min_target_rr=1.8,
-        asym_rr=3.0,
-        anti_wick_buffer_atr=0.50,
-        fast_cash_r=1.20,  # Bank 50% at +1.20R (slightly later)
+        banned_strategies=["TREND_PULLBACK"],
+        sl_atr_multiplier=2.00,
+        min_target_rr=2.2,
+        asym_rr=4.0,
+        anti_wick_buffer_atr=0.60,
+        fast_cash_r=1.80,
         fast_cash_volume_pct=0.50,
-        be_trigger_r=1.20,
-        runner_trail_atr=2.80,
+        be_trigger_r=1.50,
+        runner_trail_atr=1.80,
         session_restriction=False,
         # XM Ultra Low Standard Specs
         contract_size=1.0,
@@ -289,7 +289,7 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         symbol="XAUUSD",
         canonical="XAUUSD",
         asset_class="COMMODITY",
-        # GOLD: Proven alpha producer (+$3,014.70, 56.6% WR, 2.40 PF) — 100% PRESERVED
+        # GOLD: Proven alpha producer — optimized for higher PF and let winners run
         strategy_weights={
             "LIQUIDITY_SWEEP_REVERSAL": 3.0,
             "CHOCH_STRUCTURAL_REVERSAL": 2.5,
@@ -297,16 +297,17 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
             "BREAKOUT_EXPANSION": 1.2,
             "RANGE_MEAN_REVERSION": 1.5,
             "TREND_FOLLOWING": 1.8,
+            "MOMENTUM_CONTINUATION": 1.0,
         },
         banned_strategies=[],
-        sl_atr_multiplier=2.40,  # Tightened from 2.80 to elevate payoff ratio
-        min_target_rr=2.0,
+        sl_atr_multiplier=2.20,  # Tighter SL to improve PF
+        min_target_rr=2.2,
         asym_rr=4.5,
         anti_wick_buffer_atr=0.35,
-        fast_cash_r=1.00,
-        fast_cash_volume_pct=0.70,  # Bank 70% at 1.0R
-        be_trigger_r=1.00,
-        runner_trail_atr=2.40,
+        fast_cash_r=1.50,  # Bank later at 1.5R
+        fast_cash_volume_pct=0.50,
+        be_trigger_r=1.50,
+        runner_trail_atr=2.80,  # Wider trail for runners
         session_restriction=False,
         # Standard Commodity specs
         contract_size=100.0,
@@ -315,7 +316,7 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         digits=2,
         typical_spread_pips=0.5,
         max_allowed_spread_pips=3.0,
-        commission_per_lot=5.0,  # 100% UNCHANGED
+        commission_per_lot=5.0,
         min_volume=0.01,
         volume_step=0.01,
         margin_pct=0.1

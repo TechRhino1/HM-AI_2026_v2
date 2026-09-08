@@ -62,7 +62,7 @@ class DecisionEngine:
         master_confluence: Optional[MasterConfluenceEngine] = None,
         dynamic_levels_engine: Optional[DynamicRiskAndLevelsEngine] = None,
         min_ev_hurdle: float = 0.50,
-        max_devil_penalty: float = 40.0
+        max_devil_penalty: float = 60.0
     ):
         self.strategy_selector = strategy_selector or StrategySelector()
         self.hypothesis_engine = hypothesis_engine or HypothesisEngine()
@@ -259,21 +259,21 @@ class DecisionEngine:
         spread_ratio = spread / max(typ_spread_pips, 0.1)
         kelly_base = 1.0 / (1.0 + max(0.5, rr_ratio))
 
-        spread_penalty = 0.02 * min(2.0, max(0.0, spread_ratio - 1.0))
+        spread_penalty = 0.015 * min(2.0, max(0.0, spread_ratio - 1.0))
         if is_fx:
-            base_safety_margin = 0.220  # Forex requires 54% win prob at 2.0R
+            base_safety_margin = 0.200  # Forex requires 52% win prob at 2.0R
         elif is_gold or is_crypto or is_jpy:
-            base_safety_margin = 0.240  # Gold/Crypto/JPY requires 57% win prob at 2.0R
+            base_safety_margin = 0.220  # Gold/Crypto/JPY requires 55% win prob at 2.0R
         elif is_micro_mode:
-            base_safety_margin = 0.145  # Micro mode requires 48% win prob at 2.0R
+            base_safety_margin = 0.130  # Micro mode requires 47% win prob at 2.0R
         else:
-            base_safety_margin = 0.225
+            base_safety_margin = 0.205
 
         dynamic_kelly_p = kelly_base + base_safety_margin + spread_penalty
-        floor_win_p = 0.48 if is_micro_mode else 0.50
-        required_win_p = max(floor_win_p, min(0.68, round(dynamic_kelly_p, 2)))
+        floor_win_p = 0.46 if is_micro_mode else 0.48
+        required_win_p = max(floor_win_p, min(0.65, round(dynamic_kelly_p, 2)))
         if is_micro_mode and current_drawdown_pct > 5.0:
-            required_win_p = max(required_win_p, 0.52)
+            required_win_p = max(required_win_p, 0.50)
 
         # 3. Dynamic AI Minimum Score (Calibrated per Execution Horizon)
         is_transition_reg = (regime.primary_regime in (MarketRegime.TRANSITION, MarketRegime.REVERSAL)) or getattr(regime, "regime_transition", False)
@@ -282,14 +282,14 @@ class DecisionEngine:
         t_style_check = (getattr(context, "trade_style", None) or getattr(context, "style", "SWING") or "SWING").upper()
 
         if "SCALP" in t_style_check or is_micro_mode:
+            base_score = 62.0
+            floor_score_opt = 59.0
+        elif any(x in t_style_check for x in ("DAY", "INTRADAY")):
             base_score = 65.0
             floor_score_opt = 62.0
-        elif any(x in t_style_check for x in ("DAY", "INTRADAY")):
-            base_score = 68.0
-            floor_score_opt = 65.0
         else:
-            base_score = 73.0 if is_fx else 70.0
-            floor_score_opt = 68.0 if is_fx else 66.0
+            base_score = 68.0 if is_fx else 66.0
+            floor_score_opt = 64.0 if is_fx else 62.0
 
         if not is_fx and ev >= 1.5 and rr_ratio >= 2.0:
             base_score = max(62.0, base_score - 4.0)
@@ -315,12 +315,12 @@ class DecisionEngine:
             if current_drawdown_pct > 5.0:
                 min_score = max(min_score, 74.0)
         elif is_gold:
-            min_rr = 1.8
-            min_sl_atr_mult = 0.45
+            min_rr = 1.6
+            min_sl_atr_mult = 0.35
             max_spread = spec.max_spread_pips
         elif is_crypto:
-            min_rr = 2.0
-            min_sl_atr_mult = 0.50
+            min_rr = 1.8
+            min_sl_atr_mult = 0.40
             max_spread = spec.max_spread_pips * 0.95
         elif any(k in sym_name for k in ["US500", "NAS100", "US30", "SPX", "NDX"]):
             min_rr = 1.8
@@ -358,9 +358,9 @@ class DecisionEngine:
             min_score = max(floor_score_opt, min(80.0, min_score))
 
         if is_index_asset:
-            min_score = max(min_score, 71.0)
+            min_score = max(min_score, 65.0)
         elif "BTC" in sym_name:
-            min_score = max(min_score, 80.0)
+            min_score = max(min_score, 70.0)
 
         # 4. Macro MTF Confluence Guard
         mtf_align = getattr(context, "mtf_alignment", {})
@@ -466,13 +466,13 @@ class DecisionEngine:
         if is_crypto:
             if tentative_bias == "BUY":
                 if regime.primary_regime in (MarketRegime.STRONG_TREND_BEAR, MarketRegime.TREND_BEAR):
-                    has_reversal = bool(getattr(context.structure, "choch", False) and getattr(context.liquidity, "sweep_detected", False))
-                    if not (has_reversal and ai_score >= 78.0 and calibrated_win_p >= 0.60):
+                    has_reversal = bool(getattr(context.structure, "choch", False) or getattr(context.liquidity, "sweep_detected", False))
+                    if not (has_reversal and ai_score >= 68.0 and calibrated_win_p >= 0.50):
                         crypto_macro_trend_valid = False
             elif tentative_bias == "SELL":
                 if regime.primary_regime in (MarketRegime.STRONG_TREND_BULL, MarketRegime.TREND_BULL):
-                    has_reversal = bool(getattr(context.structure, "choch", False) and getattr(context.liquidity, "sweep_detected", False))
-                    if not (has_reversal and ai_score >= 78.0 and calibrated_win_p >= 0.60):
+                    has_reversal = bool(getattr(context.structure, "choch", False) or getattr(context.liquidity, "sweep_detected", False))
+                    if not (has_reversal and ai_score >= 68.0 and calibrated_win_p >= 0.50):
                         crypto_macro_trend_valid = False
 
         # 8. Forex False Breakout Guard: Prevent trading false breakout expansions on choppy Forex pairs
@@ -549,7 +549,7 @@ class DecisionEngine:
         # Institutional Quality Gate Matrix
         regime_viable = regime.primary_regime != MarketRegime.EVENT_RISK
         if regime.primary_regime == MarketRegime.WEAK_TREND:
-            if not (ai_score >= 80.0 and calibrated_win_p >= 0.60):
+            if not (ai_score >= 75.0 and calibrated_win_p >= 0.55):
                 regime_viable = False
 
         gate_checks = {
@@ -567,7 +567,7 @@ class DecisionEngine:
             "Valid Stop Loss Distance": risk_dist >= (context.volatility.atr * min_sl_atr_mult),
             "Premium/Discount Alignment": premium_discount_valid,
             "No Active Macro Shock": regime.primary_regime != MarketRegime.EVENT_RISK,
-            "Order Flow Momentum": abs(context.momentum.trend_score) >= 10 or context.structure.bos or context.liquidity.sweep_detected,
+            "Order Flow Momentum": abs(context.momentum.trend_score) >= 5 or context.structure.bos or context.liquidity.sweep_detected,
             "Order Flow Alignment": order_flow_aligned,
             "Macro MTF Alignment": not mtf_counter_trend,
             "Trend Not Exhausted": not is_exhausted,
@@ -578,9 +578,9 @@ class DecisionEngine:
             "Forex Breakout Guard": forex_breakout_valid,
             "Index Trend Alignment": index_counter_trend_valid,
             "Low-Beta FX Macro Alignment": low_beta_fx_macro_valid,
-            "JPY Momentum Guard": jpy_momentum_valid,
-            "SOL Confluence Guard": sol_confluence_valid,
-            "US30 Confluence Guard": us30_confluence_valid,
+            "JPY Momentum Guard": True,  # Relaxed - let quality gate handle it
+            "SOL Confluence Guard": True,  # Relaxed
+            "US30 Confluence Guard": True,  # Relaxed
             "Margin Capacity Limit": account_balance >= 10.0 and planned_risk_dollars > 0
         }
 
@@ -612,16 +612,20 @@ class DecisionEngine:
         if threat_lvl is not None and isinstance(threat_lvl, (int, float)) and threat_lvl > 0:
             spec = resolve_symbol(context.symbol)
             atr_val = context.volatility.atr if context.volatility.atr > 0 else (entry_price * 0.005)
-            if tentative_bias == "BUY" and entry_price < threat_lvl < tp_price:
-                adjusted_tp = round(threat_lvl - (atr_val * 0.1), spec.digits)
-                if adjusted_tp >= entry_price + (risk_dist * 1.0):
+            is_crypto_asset = spec.is_crypto or ("BTC" in context.symbol.upper()) or ("ETH" in context.symbol.upper()) or ("SOL" in context.symbol.upper())
+            # Crypto: Disable TP tucking (let winners run) or use much wider buffer
+            if is_crypto_asset:
+                pass  # Skip TP tucking for crypto - let winners run to full target
+            elif tentative_bias == "BUY" and entry_price < threat_lvl < tp_price:
+                adjusted_tp = round(threat_lvl - (atr_val * 0.2), spec.digits)  # Wider buffer: 0.2 ATR
+                if adjusted_tp >= entry_price + (risk_dist * 1.2):
                     logger.info(f"[{context.symbol}] Devil's Advocate threat level {threat_lvl} detected ahead of TP! Tucking TP: {tp_price} -> {adjusted_tp}")
                     tp_price = adjusted_tp
                     tp_dist = tp_price - entry_price
                     rr_ratio = round(tp_dist / (risk_dist + 1e-9), 2)
             elif tentative_bias == "SELL" and tp_price < threat_lvl < entry_price:
-                adjusted_tp = round(threat_lvl + (atr_val * 0.1), spec.digits)
-                if adjusted_tp <= entry_price - (risk_dist * 1.0):
+                adjusted_tp = round(threat_lvl + (atr_val * 0.2), spec.digits)  # Wider buffer: 0.2 ATR
+                if adjusted_tp <= entry_price - (risk_dist * 1.2):
                     logger.info(f"[{context.symbol}] Devil's Advocate threat level {threat_lvl} detected ahead of TP! Tucking TP: {tp_price} -> {adjusted_tp}")
                     tp_price = adjusted_tp
                     tp_dist = entry_price - tp_price
@@ -833,13 +837,19 @@ class DecisionEngine:
             strat_p = final_win_p
             strat_rr = rr_ratio
 
-            # Prerequisite trigger validation for non-benchmark assets:
+            # Prerequisite trigger validation:
             # A reversal strategy requires actual structural or liquidity trigger evidence
-            if not (is_gold_asset or is_oil_asset):
-                if strat == "CHOCH_STRUCTURAL_REVERSAL" and not bool(getattr(context.structure, "choch", False)):
-                    continue
-                if strat == "LIQUIDITY_SWEEP_REVERSAL" and not bool(getattr(context.liquidity, "sweep_detected", False)):
-                    continue
+            if strat == "CHOCH_STRUCTURAL_REVERSAL" and not bool(getattr(context.structure, "choch", False)):
+                continue
+            if strat == "LIQUIDITY_SWEEP_REVERSAL" and not bool(getattr(context.liquidity, "sweep_detected", False)):
+                continue
+            # MOMENTUM_CONTINUATION requires strong trend confirmation (ADX + trend_score + BOS)
+            # For crypto: DISABLE MOMENTUM_CONTINUATION entirely (use mean-reversion/breakout instead)
+            is_crypto_asset = _spec.is_crypto or ("BTC" in context.symbol.upper()) or ("ETH" in context.symbol.upper()) or ("SOL" in context.symbol.upper())
+            if is_crypto_asset and strat == "MOMENTUM_CONTINUATION":
+                continue
+            if not is_crypto_asset and strat == "MOMENTUM_CONTINUATION" and not (getattr(context.momentum, "adx", 0) >= 25 and abs(getattr(context.momentum, "trend_score", 0)) >= 25 and getattr(context.structure, "bos", False)):
+                continue
 
             # Strategy-specific edge & RR adjustments
             if strat == "RANGE_MEAN_REVERSION":
@@ -863,9 +873,10 @@ class DecisionEngine:
                     strat_p = min(0.95, strat_p + 0.05)
                 strat_rr = max(2.0, strat_rr * 1.05)
             elif strat == "MOMENTUM_CONTINUATION":
-                if context.momentum.adx >= 22 and abs(context.momentum.trend_score) >= 20:
-                    strat_p = min(0.95, strat_p + 0.04)
-                strat_rr = max(2.0, strat_rr * 1.1)
+                is_crypto_asset = _spec.is_crypto or ("BTC" in context.symbol.upper()) or ("ETH" in context.symbol.upper()) or ("SOL" in context.symbol.upper())
+                if not is_crypto_asset and context.momentum.adx >= 25 and abs(context.momentum.trend_score) >= 25 and getattr(context.structure, "bos", False):
+                    strat_p = min(0.95, strat_p + 0.02)
+                strat_rr = max(2.0, strat_rr * 1.05)
 
             strat_loss_p = round(1.0 - strat_p, 2)
             strat_win_dollars = _risk_dollars * strat_rr
