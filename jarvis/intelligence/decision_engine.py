@@ -261,13 +261,13 @@ class DecisionEngine:
 
         spread_penalty = 0.02 * min(2.0, max(0.0, spread_ratio - 1.0))
         if is_fx:
-            base_safety_margin = 0.240  # Forex requires 57% win prob at 2.0R
+            base_safety_margin = 0.220  # Forex requires 54% win prob at 2.0R
         elif is_gold or is_crypto or is_jpy:
-            base_safety_margin = 0.265  # Gold/Crypto/JPY requires 60% win prob at 2.0R
+            base_safety_margin = 0.240  # Gold/Crypto/JPY requires 57% win prob at 2.0R
         elif is_micro_mode:
             base_safety_margin = 0.145  # Micro mode requires 48% win prob at 2.0R
         else:
-            base_safety_margin = 0.245
+            base_safety_margin = 0.225
 
         dynamic_kelly_p = kelly_base + base_safety_margin + spread_penalty
         floor_win_p = 0.48 if is_micro_mode else 0.50

@@ -85,8 +85,8 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         pip_size=0.01,
         pip_value_per_lot=0.01,
         digits=2,
-        typical_spread_pips=1500.0,  # ~$15.00 on $60,000+ price (0.025%)
-        max_allowed_spread_pips=3000.0,
+        typical_spread_pips=20.0,
+        max_allowed_spread_pips=50.0,
         commission_per_lot=0.0,
         min_volume=0.01,
         volume_step=0.01,
@@ -121,8 +121,8 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         pip_size=0.01,
         pip_value_per_lot=0.01,
         digits=2,
-        typical_spread_pips=120.0,  # ~$1.20 on $2,500+ price (0.05%)
-        max_allowed_spread_pips=300.0,
+        typical_spread_pips=5.0,
+        max_allowed_spread_pips=20.0,
         commission_per_lot=0.0,
         min_volume=0.01,
         volume_step=0.01,
@@ -158,8 +158,8 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         pip_size=0.01,
         pip_value_per_lot=0.01,
         digits=2,
-        typical_spread_pips=15.0,  # ~$0.15 on $130+ price (0.11%)
-        max_allowed_spread_pips=50.0,
+        typical_spread_pips=1.0,
+        max_allowed_spread_pips=10.0,
         commission_per_lot=0.0,
         min_volume=0.01,
         volume_step=0.01,
@@ -297,22 +297,22 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
             "TREND_FOLLOWING": 1.8,
         },
         banned_strategies=[],
-        sl_atr_multiplier=2.80,  # Exact winning wide runner envelope
+        sl_atr_multiplier=2.40,  # Tightened from 2.80 to elevate payoff ratio
         min_target_rr=2.0,
-        asym_rr=4.2,
+        asym_rr=4.5,
         anti_wick_buffer_atr=0.35,
         fast_cash_r=1.00,
-        fast_cash_volume_pct=0.60,  # Bank 60% at 1.0R
+        fast_cash_volume_pct=0.70,  # Bank 70% at 1.0R
         be_trigger_r=1.00,
-        runner_trail_atr=2.60,
+        runner_trail_atr=2.40,
         session_restriction=False,
         # Standard Commodity specs
         contract_size=100.0,
         pip_size=0.01,
         pip_value_per_lot=1.0,
         digits=2,
-        typical_spread_pips=2.0,
-        max_allowed_spread_pips=5.0,
+        typical_spread_pips=0.5,
+        max_allowed_spread_pips=3.0,
         commission_per_lot=5.0,  # 100% UNCHANGED
         min_volume=0.01,
         volume_step=0.01,
@@ -333,14 +333,14 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
             "BREAKOUT_EXPANSION": 0.8,
         },
         banned_strategies=[],
-        sl_atr_multiplier=2.80,
+        sl_atr_multiplier=2.40,
         min_target_rr=2.0,
-        asym_rr=3.6,
+        asym_rr=3.8,
         anti_wick_buffer_atr=0.35,
         fast_cash_r=1.00,
-        fast_cash_volume_pct=0.60,
+        fast_cash_volume_pct=0.65,
         be_trigger_r=1.00,
-        runner_trail_atr=2.60,
+        runner_trail_atr=2.40,
         session_restriction=False,
         contract_size=1000.0,
         pip_size=0.01,
@@ -363,7 +363,7 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING"], sl_atr_multiplier=1.80, min_target_rr=2.0, asym_rr=3.2,
         fast_cash_r=1.00, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=1.80,
         session_restriction=True, allowed_utc_hours=(7, 18), contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0, digits=5,
-        typical_spread_pips=0.8, max_allowed_spread_pips=2.5, commission_per_lot=0.0, margin_pct=0.1
+        typical_spread_pips=1.2, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
     ),
     "GBPUSD": SymbolProfileConfig(
         symbol="GBPUSD", canonical="GBPUSD", asset_class="FOREX",

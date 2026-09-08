@@ -164,7 +164,7 @@ class BacktestEngine:
                     risk_dist = max(0.001, abs(open_trade["entry"] - open_trade["sl"]))
 
                 # Master-Trader Stagnation Time Stop: Close at market if bars_held >= stag_limit and mfe < (risk_dist * 0.35)
-                stag_limit = 16 if is_crypto else 8
+                stag_limit = 16 if is_crypto else 10
                 if open_trade["bars_held"] >= stag_limit and open_trade["mfe"] < (risk_dist * 0.35):
                     exit_price = float(current_bar["close"])
                     pips = ((exit_price - open_trade["entry"]) if open_trade["type"] == "BUY" else (open_trade["entry"] - exit_price)) / spec.pip_size
@@ -261,7 +261,7 @@ class BacktestEngine:
                     default_trail = 2.6 if is_gold else cfg.runner_trail_atr
                     trail_mult = open_trade.get("runner_trail_distance_atr", 1.2) if is_gold else default_trail
                     trail_dist = atr * trail_mult
-                    runner_lock_r = 1.8 if (is_fx or is_jpy) else 2.5
+                    runner_lock_r = 1.8 if (is_fx or is_jpy) else 2.0
                     if open_trade["type"] == "BUY":
                         new_sl = round(high - trail_dist, spec.digits)
                         if favorable >= (risk_dist * runner_lock_r):
