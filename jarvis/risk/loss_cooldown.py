@@ -40,11 +40,11 @@ class LossCooldownManager:
             self.consecutive_wins = 0
             
         if self.consecutive_losses == 3:
-            self.cooldown_bars_remaining = 4
-            logger.info("LossCooldownManager: 3 consecutive losses. Pausing for 4 bars.")
+            self.cooldown_bars_remaining = 12
+            logger.info("LossCooldownManager: 3 consecutive losses. Pausing for 12 bars.")
         elif self.consecutive_losses == 5:
-            self.cooldown_bars_remaining = 8
-            logger.info("LossCooldownManager: 5 consecutive losses. Pausing for 8 bars.")
+            self.cooldown_bars_remaining = 24
+            logger.info("LossCooldownManager: 5 consecutive losses. Pausing for 24 bars.")
 
     def should_skip_trade(self, symbol: str = "") -> Tuple[bool, str]:
         """Check if we should skip the next trade.
@@ -115,10 +115,10 @@ class LossCooldownManager:
         # 0.15 is 15% max drawdown threshold
         drawdown_scaler = max(0.0, 1.0 - (current_drawdown / 0.15))
         
-        # 4. Smooth loss streak scaling (bounded so recovery trades are not artificially impaired)
+        # 4. Smooth loss streak scaling (monotonically decreasing with more losses)
         loss_scaler = 1.0
-        if self.consecutive_losses >= 3:
-            loss_scaler = max(0.75, 1.0 - (0.08 * (self.consecutive_losses - 2)))
+        if self.consecutive_losses >= 2:
+            loss_scaler = max(0.40, 1.0 - (0.15 * (self.consecutive_losses - 1)))
             
         # Final risk calculation
         final_risk_pct = min(base_risk_pct, f_trade_pct * drawdown_scaler * loss_scaler)
@@ -128,9 +128,9 @@ class LossCooldownManager:
         else:
             multiplier = 0.0
             
-        # Cooldown rule: After 2 consecutive losses, reduce size by 50%
-        if self.consecutive_losses == 2:
-            multiplier = min(multiplier, 0.5)
+        # Cooldown rule: After 2+ consecutive losses, reduce size proportionally
+        if self.consecutive_losses >= 2:
+            multiplier = min(multiplier, max(0.35, 1.0 - (0.15 * self.consecutive_losses)))
             
         return max(0.0, min(1.0, multiplier))
 

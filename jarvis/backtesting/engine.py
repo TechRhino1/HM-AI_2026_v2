@@ -164,8 +164,8 @@ class BacktestEngine:
                     risk_dist = max(0.001, abs(open_trade["entry"] - open_trade["sl"]))
 
                 # Master-Trader Stagnation Time Stop: Close at market if bars_held >= stag_limit and mfe < (risk_dist * 0.35)
-                stag_limit = 16 if is_crypto else 10
-                if open_trade["bars_held"] >= stag_limit and open_trade["mfe"] < (risk_dist * 0.35):
+                stag_limit = 16 if is_crypto else 20
+                if open_trade["bars_held"] >= stag_limit and open_trade["mfe"] < (risk_dist * 0.25):
                     exit_price = float(current_bar["close"])
                     pips = ((exit_price - open_trade["entry"]) if open_trade["type"] == "BUY" else (open_trade["entry"] - exit_price)) / spec.pip_size
                     pnl_raw = pips * spec.pip_value_per_lot * open_trade["lots"]
@@ -201,21 +201,21 @@ class BacktestEngine:
                 is_crypto = getattr(spec, "is_crypto", False) or (getattr(spec, "asset_class", "").upper() == "CRYPTO") or any(k in sym_upper for k in ["BTC", "ETH", "SOL"])
                 is_gold = any(k in sym_upper for k in ["XAU", "GOLD", "WTI", "OIL"])
                 cfg = get_symbol_profile_config(symbol)
-                be_trigger_r = 1.00 if is_gold else cfg.be_trigger_r
+                be_trigger_r = 1.50 if is_gold else cfg.be_trigger_r
 
                 if not open_trade.get("be_locked", False):
                     if favorable >= (risk_dist * be_trigger_r):
                         open_trade["be_locked"] = True
-                        be_buffer = max(spec.pip_size * 2.5, risk_dist * 0.08)
+                        be_buffer = max(spec.pip_size * 2.5, risk_dist * 0.15)
                         if open_trade["type"] == "BUY":
                             open_trade["sl"] = max(open_trade["sl"], round(open_trade["entry"] + be_buffer, spec.digits))
                         else:
                             open_trade["sl"] = min(open_trade["sl"], round(open_trade["entry"] - be_buffer, spec.digits))
 
                 # Master-Trader Stage 1 Fast Cash Lock: Bank 60% (Gold/Oil) or profile pct (others)
-                fast_cash_r = 1.00 if is_gold else cfg.fast_cash_r
+                fast_cash_r = 1.50 if is_gold else cfg.fast_cash_r
                 fast_cash_dist = risk_dist * fast_cash_r
-                profit_floor_dist = max(spec.pip_size * 2.5, risk_dist * 0.10) if is_gold else max(spec.pip_size * 2.0, risk_dist * cfg.be_buffer_pct)
+                profit_floor_dist = max(spec.pip_size * 2.5, risk_dist * 0.15) if is_gold else max(spec.pip_size * 2.0, risk_dist * cfg.be_buffer_pct)
 
                 if not open_trade.get("partial_closed", False) and open_trade["lots"] >= 0.01:
                     is_target_hit = False
@@ -229,7 +229,7 @@ class BacktestEngine:
 
                     if is_target_hit:
                         # Bank volume into realized cash: 60% for Gold/Oil, profile pct for others
-                        partial_ratio = 0.60 if is_gold else cfg.fast_cash_volume_pct
+                        partial_ratio = 0.40 if is_gold else cfg.fast_cash_volume_pct
                         partial_lots = round(open_trade["lots"] * partial_ratio, 2)
                         if partial_lots >= 0.01 and open_trade["lots"] > partial_lots:
                             pips_p = ((partial_exit_p - open_trade["entry"]) if open_trade["type"] == "BUY" else (open_trade["entry"] - partial_exit_p)) / spec.pip_size
@@ -258,7 +258,7 @@ class BacktestEngine:
 
                 # Stage 2 (Dynamic Runner Trail): Trail remaining runner using runner_trail_distance_atr
                 if open_trade.get("partial_closed", False):
-                    default_trail = 2.6 if is_gold else cfg.runner_trail_atr
+                    default_trail = 3.50 if is_gold else cfg.runner_trail_atr
                     trail_mult = open_trade.get("runner_trail_distance_atr", 1.2) if is_gold else default_trail
                     trail_dist = atr * trail_mult
                     runner_lock_r = 1.8 if (is_fx or is_jpy) else 2.0

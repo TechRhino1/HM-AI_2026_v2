@@ -179,9 +179,9 @@ class DynamicRiskAndLevelsEngine:
                     asym_rr = 2.8
             else:  # SWING
                 if is_gold:
-                    max_swing_sl = 2.80 * atr  # Retain winning commodity runner parameters (100% UNCHANGED)
-                    min_target_rr = 2.0 if is_ranging else 2.5
-                    asym_rr = 2.2 if is_ranging else 4.2
+                    max_swing_sl = cfg.sl_atr_multiplier * atr
+                    min_target_rr = cfg.min_target_rr if not is_ranging else max(1.5, cfg.min_target_rr - 0.3)
+                    asym_rr = cfg.asym_rr if not is_ranging else max(2.2, cfg.asym_rr - 0.6)
                 else:
                     max_swing_sl = cfg.sl_atr_multiplier * atr
                     min_target_rr = cfg.min_target_rr if not is_ranging else max(1.5, cfg.min_target_rr - 0.3)
@@ -290,9 +290,9 @@ class DynamicRiskAndLevelsEngine:
                     asym_rr = 2.8
             else:  # SWING
                 if is_gold:
-                    max_swing_sl = 2.80 * atr  # Retain winning commodity runner parameters (100% UNCHANGED)
-                    min_target_rr = 2.0 if is_ranging else 2.5
-                    asym_rr = 2.2 if is_ranging else 4.2
+                    max_swing_sl = cfg.sl_atr_multiplier * atr
+                    min_target_rr = cfg.min_target_rr if not is_ranging else max(1.5, cfg.min_target_rr - 0.3)
+                    asym_rr = cfg.asym_rr if not is_ranging else max(2.2, cfg.asym_rr - 0.6)
                 else:
                     max_swing_sl = cfg.sl_atr_multiplier * atr
                     min_target_rr = cfg.min_target_rr if not is_ranging else max(1.5, cfg.min_target_rr - 0.3)

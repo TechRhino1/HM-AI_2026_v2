@@ -62,7 +62,7 @@ class DecisionEngine:
         master_confluence: Optional[MasterConfluenceEngine] = None,
         dynamic_levels_engine: Optional[DynamicRiskAndLevelsEngine] = None,
         min_ev_hurdle: float = 0.50,
-        max_devil_penalty: float = 43.0
+        max_devil_penalty: float = 38.0
     ):
         self.strategy_selector = strategy_selector or StrategySelector()
         self.hypothesis_engine = hypothesis_engine or HypothesisEngine()
@@ -282,18 +282,18 @@ class DecisionEngine:
         t_style_check = (getattr(context, "trade_style", None) or getattr(context, "style", "SWING") or "SWING").upper()
 
         if "SCALP" in t_style_check or is_micro_mode:
-            base_score = 62.0
-            floor_score_opt = 60.0
+            base_score = 66.0
+            floor_score_opt = 63.0
         elif any(x in t_style_check for x in ("DAY", "INTRADAY")):
-            base_score = 65.0
-            floor_score_opt = 62.0
+            base_score = 69.0
+            floor_score_opt = 66.0
         else:
-            base_score = 72.0 if is_fx else 68.0
-            floor_score_opt = 67.0 if is_fx else 65.0
+            base_score = 75.0 if is_fx else 72.0
+            floor_score_opt = 70.0 if is_fx else 68.0
 
         if not is_fx and ev >= 1.5 and rr_ratio >= 2.0:
-            base_score = max(58.0, base_score - 4.0)
-            floor_score_opt = max(58.0, floor_score_opt - 4.0)
+            base_score = max(62.0, base_score - 4.0)
+            floor_score_opt = max(62.0, floor_score_opt - 4.0)
 
         dynamic_score = base_score + (5.0 if is_transition_reg else 0.0) + (6.0 * spread_excess) - confluence_adj
         min_score = max(floor_score_opt, min(80.0, dynamic_score))
@@ -360,7 +360,7 @@ class DecisionEngine:
         if is_index_asset:
             min_score = max(min_score, 72.0)
         elif "BTC" in sym_name:
-            min_score = max(min_score, 78.0)
+            min_score = max(min_score, 82.0)
 
         # 4. Macro MTF Confluence Guard
         mtf_align = getattr(context, "mtf_alignment", {})
@@ -764,16 +764,16 @@ class DecisionEngine:
         is_micro_mode = is_micro_account(account_balance)
         t_style = (getattr(context, "trade_style", None) or getattr(context, "style", "SWING") or "SWING").upper()
         if "SCALP" in t_style:
-            _min_confluence = 20
+            _min_confluence = 22
         elif any(x in t_style for x in ("DAY", "INTRADAY")):
-            _min_confluence = 24
-        elif _is_forex(context.symbol):
-            _min_confluence = 24
-        else:
             _min_confluence = 26
+        elif _is_forex(context.symbol):
+            _min_confluence = 28
+        else:
+            _min_confluence = 30
 
         if (rr_ratio >= 2.0 and ev > 0) or is_micro_mode:
-            _min_confluence = max(18, _min_confluence - 4)
+            _min_confluence = max(20, _min_confluence - 4)
 
         master_confluence_valid = _master_score >= _min_confluence
         
