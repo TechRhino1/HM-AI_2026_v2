@@ -26,7 +26,8 @@ class StrategySelector:
         "BREAKOUT_EXPANSION",
         "LIQUIDITY_SWEEP_REVERSAL",
         "RANGE_MEAN_REVERSION",
-        "CHOCH_STRUCTURAL_REVERSAL"
+        "CHOCH_STRUCTURAL_REVERSAL",
+        "MOMENTUM_CONTINUATION"
     ]
 
     def __init__(self, bandit: Optional[StrategyBandit] = None):
@@ -92,7 +93,8 @@ class StrategySelector:
                 "BREAKOUT_EXPANSION": 0.4,
                 "LIQUIDITY_SWEEP_REVERSAL": 2.8,
                 "RANGE_MEAN_REVERSION": 0.5,
-                "CHOCH_STRUCTURAL_REVERSAL": 2.5
+                "CHOCH_STRUCTURAL_REVERSAL": 2.5,
+                "MOMENTUM_CONTINUATION": 1.8
             }
         else:
             # Symbol-specific configuration initialization
@@ -103,7 +105,8 @@ class StrategySelector:
                 "BREAKOUT_EXPANSION": cfg.strategy_weights.get("BREAKOUT_EXPANSION", 1.0),
                 "LIQUIDITY_SWEEP_REVERSAL": cfg.strategy_weights.get("LIQUIDITY_SWEEP_REVERSAL", 1.0),
                 "RANGE_MEAN_REVERSION": cfg.strategy_weights.get("RANGE_MEAN_REVERSION", 1.0),
-                "CHOCH_STRUCTURAL_REVERSAL": cfg.strategy_weights.get("CHOCH_STRUCTURAL_REVERSAL", 1.0)
+                "CHOCH_STRUCTURAL_REVERSAL": cfg.strategy_weights.get("CHOCH_STRUCTURAL_REVERSAL", 1.0),
+                "MOMENTUM_CONTINUATION": cfg.strategy_weights.get("MOMENTUM_CONTINUATION", 1.2)
             }
             # Enforce symbol-specific banned strategies immediately
             for banned in cfg.banned_strategies:
@@ -187,6 +190,7 @@ class StrategySelector:
 
         if r in [MarketRegime.TREND_BULL, MarketRegime.TREND_BEAR]:
             prior_weights["TREND_FOLLOWING"] *= ((1.8 + reg_conf) if not is_index else 0.0)
+            prior_weights["MOMENTUM_CONTINUATION"] *= (2.0 + reg_conf)
             if is_index:
                 # In trend regime on indices: Allow trend pullbacks (dip buying), do NOT multiply sweep fades
                 prior_weights["TREND_PULLBACK"] *= ((2.0 + reg_conf) if r == MarketRegime.TREND_BULL else 0.5)
@@ -218,6 +222,7 @@ class StrategySelector:
                 prior_weights["BREAKOUT_EXPANSION"] *= (2.4 + reg_conf)
             prior_weights["TREND_PULLBACK"] *= (1.8 + reg_conf)
             prior_weights["TREND_FOLLOWING"] *= ((1.4 + reg_conf) if not is_index else 0.0)
+            prior_weights["MOMENTUM_CONTINUATION"] *= (2.5 + reg_conf)
             prior_weights["RANGE_MEAN_REVERSION"] = 0.0
             prior_weights["LIQUIDITY_SWEEP_REVERSAL"] *= ((1.8 + reg_conf) if is_index else 0.6)
             prior_weights["CHOCH_STRUCTURAL_REVERSAL"] *= 0.5
@@ -244,6 +249,7 @@ class StrategySelector:
             if adx_val >= 25.0:
                 prior_weights["TREND_PULLBACK"] *= (1.4 * slope_boost)
                 prior_weights["TREND_FOLLOWING"] *= (1.3 * slope_boost)
+                prior_weights["MOMENTUM_CONTINUATION"] *= (1.5 * slope_boost)
                 if adx_val >= 28.0 and not is_forex_major:
                     prior_weights["BREAKOUT_EXPANSION"] *= (1.4 * slope_boost)
                 prior_weights["RANGE_MEAN_REVERSION"] *= 0.2
@@ -290,6 +296,7 @@ class StrategySelector:
             if getattr(st, "bos", False) and adx_val >= 22.0:
                 prior_weights["TREND_PULLBACK"] *= 1.5
                 prior_weights["TREND_FOLLOWING"] *= 1.3
+                prior_weights["MOMENTUM_CONTINUATION"] *= 1.8
 
             # E. Volatility State Constraints
             vol_state = getattr(vol, "state", "NORMAL").upper()

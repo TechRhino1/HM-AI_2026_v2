@@ -164,8 +164,8 @@ class BacktestEngine:
                     risk_dist = max(0.001, abs(open_trade["entry"] - open_trade["sl"]))
 
                 # Master-Trader Stagnation Time Stop: Close at market if bars_held >= stag_limit and mfe < (risk_dist * 0.35)
-                stag_limit = 16 if is_crypto else 20
-                if open_trade["bars_held"] >= stag_limit and open_trade["mfe"] < (risk_dist * 0.25):
+                stag_limit = 24 if is_crypto else 30
+                if open_trade["bars_held"] >= stag_limit and open_trade["mfe"] < (risk_dist * 0.20):
                     exit_price = float(current_bar["close"])
                     pips = ((exit_price - open_trade["entry"]) if open_trade["type"] == "BUY" else (open_trade["entry"] - exit_price)) / spec.pip_size
                     pnl_raw = pips * spec.pip_value_per_lot * open_trade["lots"]
@@ -201,12 +201,12 @@ class BacktestEngine:
                 is_crypto = getattr(spec, "is_crypto", False) or (getattr(spec, "asset_class", "").upper() == "CRYPTO") or any(k in sym_upper for k in ["BTC", "ETH", "SOL"])
                 is_gold = any(k in sym_upper for k in ["XAU", "GOLD", "WTI", "OIL"])
                 cfg = get_symbol_profile_config(symbol)
-                be_trigger_r = 1.50 if is_gold else cfg.be_trigger_r
+                be_trigger_r = 1.20 if is_gold else cfg.be_trigger_r
 
                 if not open_trade.get("be_locked", False):
                     if favorable >= (risk_dist * be_trigger_r):
                         open_trade["be_locked"] = True
-                        be_buffer = max(spec.pip_size * 2.5, risk_dist * 0.15)
+                        be_buffer = max(spec.pip_size * 3.0, risk_dist * 0.18)
                         if open_trade["type"] == "BUY":
                             open_trade["sl"] = max(open_trade["sl"], round(open_trade["entry"] + be_buffer, spec.digits))
                         else:
@@ -215,7 +215,7 @@ class BacktestEngine:
                 # Master-Trader Stage 1 Fast Cash Lock: Bank 60% (Gold/Oil) or profile pct (others)
                 fast_cash_r = 1.50 if is_gold else cfg.fast_cash_r
                 fast_cash_dist = risk_dist * fast_cash_r
-                profit_floor_dist = max(spec.pip_size * 2.5, risk_dist * 0.15) if is_gold else max(spec.pip_size * 2.0, risk_dist * cfg.be_buffer_pct)
+                profit_floor_dist = max(spec.pip_size * 3.0, risk_dist * 0.18) if is_gold else max(spec.pip_size * 2.0, risk_dist * cfg.be_buffer_pct)
 
                 if not open_trade.get("partial_closed", False) and open_trade["lots"] >= 0.01:
                     is_target_hit = False

@@ -69,6 +69,7 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
             "CHOCH_STRUCTURAL_REVERSAL": 0.0,
             "LIQUIDITY_SWEEP_REVERSAL": 0.0,
             "RANGE_MEAN_REVERSION": 0.0,
+            "MOMENTUM_CONTINUATION": 2.5,
         },
         banned_strategies=["LIQUIDITY_SWEEP_REVERSAL", "RANGE_MEAN_REVERSION", "TREND_FOLLOWING", "BREAKOUT_EXPANSION", "CHOCH_STRUCTURAL_REVERSAL"],
         sl_atr_multiplier=2.50,  # 2.50 ATR buffer absorbs Bitcoin wick expansion
@@ -142,6 +143,7 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
             "TREND_FOLLOWING": 0.0,
             "TREND_PULLBACK": 0.0,
             "BREAKOUT_EXPANSION": 0.0,
+            "MOMENTUM_CONTINUATION": 2.0,
         },
         banned_strategies=["TREND_FOLLOWING", "TREND_PULLBACK", "BREAKOUT_EXPANSION", "CHOCH_STRUCTURAL_REVERSAL"],
         sl_atr_multiplier=2.40,  # Calibrated breathing room prevents oversized losses

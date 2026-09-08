@@ -52,11 +52,11 @@ class LossCooldownManager:
         if self.cooldown_bars_remaining > 0:
             return True, f"Cooldown active for {self.cooldown_bars_remaining} more bars."
             
-        # Max 3% daily drawdown
+        # Max 5% daily drawdown
         if self.peak_equity > 0:
             daily_dd = self.daily_pnl / self.peak_equity
-            if daily_dd <= -0.03:
-                return True, "Max daily drawdown (3%) reached."
+            if daily_dd <= -0.05:
+                return True, "Max daily drawdown (5%) reached."
                 
         # Max 5 trades per day per symbol
         if symbol and self.trades_today_by_symbol.get(symbol, 0) >= 5:

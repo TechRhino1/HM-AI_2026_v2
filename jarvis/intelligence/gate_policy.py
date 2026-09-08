@@ -25,7 +25,7 @@ HARD_GATES = {
 
 
 class AdaptiveGatePolicy:
-    def __init__(self, max_soft_fail: int = 1, min_recent_win_rate: float = 0.50):
+    def __init__(self, max_soft_fail: int = 2, min_recent_win_rate: float = 0.48):
         self.max_soft_fail = max_soft_fail
         self.min_recent_win_rate = min_recent_win_rate
 
