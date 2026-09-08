@@ -61,33 +61,33 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         symbol="BTCUSD",
         canonical="BTCUSD",
         asset_class="CRYPTO",
-        # Bitcoin: Trend pullback alpha model (buying dips in bull runs, fading shallow rallies in bear legs).
+        # Bitcoin: Multi-strategy approach — trend pullback + momentum continuation + breakout
         strategy_weights={
-            "TREND_PULLBACK": 4.0,
-            "BREAKOUT_EXPANSION": 0.0,
-            "TREND_FOLLOWING": 0.0,
-            "CHOCH_STRUCTURAL_REVERSAL": 0.0,
+            "TREND_PULLBACK": 3.0,
+            "MOMENTUM_CONTINUATION": 2.8,
+            "BREAKOUT_EXPANSION": 2.0,
+            "TREND_FOLLOWING": 1.5,
+            "CHOCH_STRUCTURAL_REVERSAL": 1.2,
             "LIQUIDITY_SWEEP_REVERSAL": 0.0,
             "RANGE_MEAN_REVERSION": 0.0,
-            "MOMENTUM_CONTINUATION": 2.5,
         },
-        banned_strategies=["LIQUIDITY_SWEEP_REVERSAL", "RANGE_MEAN_REVERSION", "TREND_FOLLOWING", "BREAKOUT_EXPANSION", "CHOCH_STRUCTURAL_REVERSAL"],
-        sl_atr_multiplier=2.50,  # 2.50 ATR buffer absorbs Bitcoin wick expansion
-        min_target_rr=2.0,
-        asym_rr=3.5,
+        banned_strategies=["LIQUIDITY_SWEEP_REVERSAL", "RANGE_MEAN_REVERSION"],
+        sl_atr_multiplier=2.80,  # Wider SL for BTC volatility
+        min_target_rr=1.8,
+        asym_rr=3.0,
         anti_wick_buffer_atr=0.50,
-        fast_cash_r=1.00,  # Bank 50% early at +1.00R
+        fast_cash_r=1.20,  # Bank 50% at +1.20R (slightly later)
         fast_cash_volume_pct=0.50,
-        be_trigger_r=1.00,
-        runner_trail_atr=2.40,
+        be_trigger_r=1.20,
+        runner_trail_atr=2.80,
         session_restriction=False,
         # XM Ultra Low Standard Specs
         contract_size=1.0,
         pip_size=0.01,
         pip_value_per_lot=0.01,
         digits=2,
-        typical_spread_pips=20.0,
-        max_allowed_spread_pips=50.0,
+        typical_spread_pips=15.0,
+        max_allowed_spread_pips=40.0,
         commission_per_lot=0.0,
         min_volume=0.01,
         volume_step=0.01,
@@ -104,15 +104,15 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
             "TREND_FOLLOWING": 2.8,
             "CHOCH_STRUCTURAL_REVERSAL": 2.0,
             "TREND_PULLBACK": 1.6,
-            "LIQUIDITY_SWEEP_REVERSAL": 0.0,  # Banned: fading ETH sweeps is toxic
+            "LIQUIDITY_SWEEP_REVERSAL": 0.0,
             "RANGE_MEAN_REVERSION": 0.0,
         },
         banned_strategies=["LIQUIDITY_SWEEP_REVERSAL", "RANGE_MEAN_REVERSION"],
-        sl_atr_multiplier=2.30,  # Tightened from 2.65 to elevate payoff ratio
+        sl_atr_multiplier=2.30,
         min_target_rr=2.0,
         asym_rr=3.5,
         anti_wick_buffer_atr=0.45,
-        fast_cash_r=1.00,  # Bank at +1.00R (up from 0.85R)
+        fast_cash_r=1.00,
         fast_cash_volume_pct=0.50,
         be_trigger_r=1.00,
         runner_trail_atr=2.40,
@@ -122,10 +122,10 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         pip_size=0.01,
         pip_value_per_lot=0.01,
         digits=2,
-        typical_spread_pips=5.0,
-        max_allowed_spread_pips=20.0,
+        typical_spread_pips=2.0,
+        max_allowed_spread_pips=10.0,
         commission_per_lot=0.0,
-        min_volume=0.01,
+        min_volume=0.02,
         volume_step=0.01,
         margin_pct=0.5
     ),
@@ -146,24 +146,24 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
             "MOMENTUM_CONTINUATION": 2.0,
         },
         banned_strategies=["TREND_FOLLOWING", "TREND_PULLBACK", "BREAKOUT_EXPANSION", "CHOCH_STRUCTURAL_REVERSAL"],
-        sl_atr_multiplier=2.40,  # Calibrated breathing room prevents oversized losses
+        sl_atr_multiplier=2.40,
         min_target_rr=2.0,
         asym_rr=3.2,
         anti_wick_buffer_atr=0.45,
-        fast_cash_r=1.00,  # Bank 50% at +1.00R
+        fast_cash_r=1.00,
         fast_cash_volume_pct=0.50,
         be_trigger_r=1.00,
         runner_trail_atr=2.00,
         session_restriction=False,
         # XM Ultra Low Standard Specs
-        contract_size=1.0,
+        contract_size=10.0,
         pip_size=0.01,
-        pip_value_per_lot=0.01,
+        pip_value_per_lot=0.10,
         digits=2,
-        typical_spread_pips=1.0,
-        max_allowed_spread_pips=10.0,
+        typical_spread_pips=0.5,
+        max_allowed_spread_pips=5.0,
         commission_per_lot=0.0,
-        min_volume=0.01,
+        min_volume=0.05,
         volume_step=0.01,
         margin_pct=0.5
     ),
@@ -194,17 +194,17 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         be_trigger_r=1.00,
         runner_trail_atr=2.10,
         session_restriction=True,
-        allowed_utc_hours=(13, 21),  # Active US Cash & NY Overlap only (eliminates overnight chop)
+        allowed_utc_hours=(13, 21),
         # XM Ultra Low Standard Specs
         contract_size=1.0,
-        pip_size=0.1,
-        pip_value_per_lot=1.0,
-        digits=1,
-        typical_spread_pips=0.6,
-        max_allowed_spread_pips=2.5,
+        pip_size=0.01,
+        pip_value_per_lot=0.01,
+        digits=2,
+        typical_spread_pips=0.7,
+        max_allowed_spread_pips=3.0,
         commission_per_lot=0.0,
-        min_volume=0.01,
-        volume_step=0.01,
+        min_volume=0.1,
+        volume_step=0.1,
         margin_pct=0.2
     ),
 
@@ -231,11 +231,11 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         be_trigger_r=1.00,
         runner_trail_atr=2.20,
         session_restriction=True,
-        allowed_utc_hours=(13, 21),  # Active US Cash & NY Overlap only
+        allowed_utc_hours=(13, 21),
         # XM Ultra Low Standard Specs
         contract_size=1.0,
-        pip_size=1.0,
-        pip_value_per_lot=1.0,
+        pip_size=0.01,
+        pip_value_per_lot=0.01,
         digits=1,
         typical_spread_pips=2.0,
         max_allowed_spread_pips=7.0,
@@ -259,26 +259,26 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
             "BREAKOUT_EXPANSION": 0.0,
         },
         banned_strategies=["TREND_PULLBACK", "TREND_FOLLOWING", "BREAKOUT_EXPANSION", "CHOCH_STRUCTURAL_REVERSAL"],
-        sl_atr_multiplier=2.50,  # Wide breathing room absorbs 250-400 pt industrial swings
+        sl_atr_multiplier=2.50,
         min_target_rr=2.0,
         asym_rr=3.2,
         anti_wick_buffer_atr=0.45,
-        fast_cash_r=0.90,  # Bank 50% early at +0.90R
+        fast_cash_r=0.90,
         fast_cash_volume_pct=0.50,
         be_trigger_r=0.90,
         runner_trail_atr=2.00,
         session_restriction=True,
-        allowed_utc_hours=(13, 21),  # Active US Cash & NY Overlap only
+        allowed_utc_hours=(13, 21),
         # XM Ultra Low Standard Specs
         contract_size=1.0,
-        pip_size=1.0,
-        pip_value_per_lot=1.0,
-        digits=1,
-        typical_spread_pips=2.5,
-        max_allowed_spread_pips=8.0,
+        pip_size=0.01,
+        pip_value_per_lot=0.01,
+        digits=2,
+        typical_spread_pips=4.0,
+        max_allowed_spread_pips=10.0,
         commission_per_lot=0.0,
-        min_volume=0.01,
-        volume_step=0.01,
+        min_volume=0.1,
+        volume_step=0.1,
         margin_pct=0.2
     ),
 
@@ -344,14 +344,14 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         be_trigger_r=1.00,
         runner_trail_atr=2.40,
         session_restriction=False,
-        contract_size=1000.0,
-        pip_size=0.01,
-        pip_value_per_lot=10.0,
-        digits=2,
-        typical_spread_pips=3.0,
-        max_allowed_spread_pips=8.0,
+        contract_size=10.0,
+        pip_size=0.001,
+        pip_value_per_lot=0.01,
+        digits=3,
+        typical_spread_pips=63.0,
+        max_allowed_spread_pips=100.0,
         commission_per_lot=5.0,
-        min_volume=0.01,
+        min_volume=0.15,
         volume_step=0.01,
         margin_pct=0.2
     ),
@@ -373,14 +373,14 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         banned_strategies=["BREAKOUT_EXPANSION", "LIQUIDITY_SWEEP_REVERSAL", "TREND_FOLLOWING"], sl_atr_multiplier=1.80, min_target_rr=2.0, asym_rr=3.2,
         fast_cash_r=1.00, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=1.80,
         session_restriction=True, allowed_utc_hours=(7, 18), contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0, digits=5,
-        typical_spread_pips=1.0, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
+        typical_spread_pips=1.3, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
     ),
     "USDJPY": SymbolProfileConfig(
         symbol="USDJPY", canonical="USDJPY", asset_class="FOREX",
         strategy_weights={"RANGE_MEAN_REVERSION": 3.6, "LIQUIDITY_SWEEP_REVERSAL": 3.0, "CHOCH_STRUCTURAL_REVERSAL": 2.2, "TREND_PULLBACK": 0.0, "TREND_FOLLOWING": 0.0, "BREAKOUT_EXPANSION": 0.0},
         banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING", "TREND_PULLBACK"], sl_atr_multiplier=1.80, min_target_rr=2.0, asym_rr=3.2, fast_cash_r=1.00, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=1.60,
         session_restriction=False, contract_size=100_000.0, pip_size=0.01, pip_value_per_lot=6.80, digits=3,
-        typical_spread_pips=0.9, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
+        typical_spread_pips=1.5, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
     ),
     "AUDUSD": SymbolProfileConfig(
         symbol="AUDUSD", canonical="AUDUSD", asset_class="FOREX",
@@ -388,7 +388,7 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING", "LIQUIDITY_SWEEP_REVERSAL"], sl_atr_multiplier=1.80, min_target_rr=2.0, asym_rr=3.2,
         fast_cash_r=1.00, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=1.80,
         session_restriction=False, contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0, digits=5,
-        typical_spread_pips=1.0, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
+        typical_spread_pips=1.3, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
     ),
     "USDCHF": SymbolProfileConfig(
         symbol="USDCHF", canonical="USDCHF", asset_class="FOREX",
@@ -396,7 +396,7 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING", "TREND_PULLBACK"], sl_atr_multiplier=1.80, min_target_rr=2.0, asym_rr=3.2,
         fast_cash_r=1.00, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=1.80,
         session_restriction=True, allowed_utc_hours=(7, 18), contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0, digits=5,
-        typical_spread_pips=1.2, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
+        typical_spread_pips=1.5, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
     ),
 }
 
