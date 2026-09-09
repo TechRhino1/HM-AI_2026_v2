@@ -20,7 +20,7 @@ def test_cooldown_trigger_after_3_losses():
     manager.record_trade_result(-100, is_win=False)
     
     assert manager.consecutive_losses == 3
-    assert manager.cooldown_bars_remaining == 12
+    assert manager.cooldown_bars_remaining == 2
     
     skip, reason = manager.should_skip_trade()
     assert skip is True
@@ -46,13 +46,13 @@ def test_fractional_kelly_multiplier():
 def test_daily_limit_tracking():
     manager = LossCooldownManager()
     
-    # 5 trades per day
-    for _ in range(5):
+    # 8 trades per day
+    for _ in range(8):
         manager.record_trade_result(10, is_win=True, symbol="EURUSD")
         
     skip, reason = manager.should_skip_trade("EURUSD")
     assert skip is True
-    assert "Max 5 trades" in reason
+    assert "Max 8 trades" in reason
     
     # Different symbol shouldn't be skipped for symbol limit, but global limit might trigger
     # Wait, the manager code checks: if symbol and self.trades_today_by_symbol.get(symbol, 0) >= 5

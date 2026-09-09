@@ -208,7 +208,7 @@ class TestDynamicLevelsAndRefactoring(unittest.TestCase):
     def test_strategy_selector_bayesian_sweep_and_volume_delta(self):
         """Task 3: StrategySelector Bayesian weights updated by sweep detection and volume delta."""
         ctx_sweep = MarketContext(
-            symbol="EURUSD",
+            symbol="WTI",
             timestamp=datetime.now(timezone.utc),
             current_price=1.0850,
             bid=1.0849,
