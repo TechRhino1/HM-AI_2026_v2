@@ -398,6 +398,131 @@ class MT5Client:
 
         return TimeoutGuard.run_sync(_send, timeout_sec=5.0, default={"status": "FAILED", "reason": "Timeout"}, task_name=f"MT5_SendOrder_{symbol}")
 
+    def place_pending_order(
+        self,
+        symbol: str,
+        order_type: str,
+        price: float,
+        volume: float,
+        sl_price: float = 0.0,
+        tp_price: float = 0.0,
+        comment: str = "JARVIS_LIMIT"
+    ) -> Dict[str, Any]:
+        """Places a pending limit/stop order on MT5 (BUY_LIMIT, SELL_LIMIT, BUY_STOP, SELL_STOP)."""
+        if self.mode not in {"live", "demo", "paper"}:
+            return {"status": "BLOCKED", "reason": f"Execution is disabled (mode={self.mode})"}
+        valid_types = {"BUY_LIMIT", "SELL_LIMIT", "BUY_STOP", "SELL_STOP"}
+        if order_type not in valid_types:
+            return {"status": "FAILED", "reason": f"order_type must be one of {valid_types}"}
+
+        self._reconnect_if_needed()
+        resolved = self.resolve_symbol_name(symbol)
+
+        if self.mode == "paper" or not MT5_AVAILABLE:
+            ticket = int(time.time() * 1000) % 100000000
+            logger.info(f"[PAPER] Pending order PLACED: #{ticket} {order_type} {volume} {resolved} @ {price}")
+            return {
+                "status": "PLACED",
+                "ticket": ticket,
+                "symbol": resolved,
+                "type": order_type,
+                "volume": volume,
+                "price": price,
+                "comment": f"[PAPER] {comment}"
+            }
+
+        def _send_pending():
+            with self._lock:
+                sym_info = mt5.symbol_info(resolved)
+                if not sym_info:
+                    return {"status": "FAILED", "reason": f"Symbol metadata unavailable for {resolved}"}
+
+                digits = sym_info.digits
+                type_map = {
+                    "BUY_LIMIT": getattr(mt5, "ORDER_TYPE_BUY_LIMIT", 2),
+                    "SELL_LIMIT": getattr(mt5, "ORDER_TYPE_SELL_LIMIT", 3),
+                    "BUY_STOP": getattr(mt5, "ORDER_TYPE_BUY_STOP", 4),
+                    "SELL_STOP": getattr(mt5, "ORDER_TYPE_SELL_STOP", 5),
+                }
+
+                request = {
+                    "action": getattr(mt5, "TRADE_ACTION_PENDING", 5),
+                    "symbol": resolved,
+                    "volume": volume,
+                    "type": type_map[order_type],
+                    "price": round(price, digits),
+                    "sl": round(sl_price, digits) if sl_price > 0 else 0.0,
+                    "tp": round(tp_price, digits) if tp_price > 0 else 0.0,
+                    "magic": self.magic_number,
+                    "comment": comment,
+                    "type_time": getattr(mt5, "ORDER_TIME_GTC", 0),
+                    "type_filling": getattr(mt5, "ORDER_FILLING_IOC", 1)
+                }
+
+                result = mt5.order_send(request)
+                if result and result.retcode in [10030, 10031]:
+                    request["type_filling"] = getattr(mt5, "ORDER_FILLING_FOK", 0)
+                    result = mt5.order_send(request)
+                    if result and result.retcode in [10030, 10031]:
+                        request["type_filling"] = getattr(mt5, "ORDER_FILLING_RETURN", 2)
+                        result = mt5.order_send(request)
+
+                if result is None or result.retcode not in [getattr(mt5, "TRADE_RETCODE_DONE", 10009), getattr(mt5, "TRADE_RETCODE_PLACED", 10008)]:
+                    err_msg = result.comment if result else str(mt5.last_error())
+                    logger.error(f"MT5 Pending Order Failed for {resolved}: {err_msg}")
+                    return {"status": "FAILED", "reason": err_msg}
+
+                logger.info(f"⚡ PENDING ORDER PLACED: Ticket={result.order} {order_type} {volume} {resolved} @ {price}")
+                return {
+                    "status": "PLACED",
+                    "ticket": result.order,
+                    "symbol": resolved,
+                    "type": order_type,
+                    "volume": volume,
+                    "price": price,
+                    "comment": result.comment
+                }
+
+        return TimeoutGuard.run_sync(_send_pending, timeout_sec=5.0, default={"status": "FAILED", "reason": "Timeout"}, task_name=f"MT5_Pending_{symbol}")
+
+    def get_pending_orders(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Returns active pending orders from MT5."""
+        if self.mode == "paper" or not MT5_AVAILABLE or not self.is_connected:
+            return []
+        resolved = self.resolve_symbol_name(symbol) if symbol else None
+        orders = mt5.orders_get(symbol=resolved) if resolved else mt5.orders_get()
+        if not orders:
+            return []
+        res = []
+        for o in orders:
+            res.append({
+                "ticket": o.ticket,
+                "symbol": o.symbol,
+                "type": o.type,
+                "volume": o.volume_initial,
+                "price": o.price_open,
+                "sl": o.sl,
+                "tp": o.tp,
+                "comment": o.comment,
+                "time_setup": o.time_setup
+            })
+        return res
+
+    def cancel_pending_order(self, ticket: int) -> Dict[str, Any]:
+        """Cancels a pending order by ticket."""
+        if self.mode == "paper" or not MT5_AVAILABLE or not self.is_connected:
+            return {"status": "CANCELLED", "ticket": ticket}
+        request = {
+            "action": getattr(mt5, "TRADE_ACTION_REMOVE", 8),
+            "order": ticket
+        }
+        result = mt5.order_send(request)
+        if result and result.retcode in [getattr(mt5, "TRADE_RETCODE_DONE", 10009), getattr(mt5, "TRADE_RETCODE_PLACED", 10008)]:
+            logger.info(f"⚡ PENDING ORDER CANCELLED: Ticket={ticket}")
+            return {"status": "CANCELLED", "ticket": ticket}
+        err_msg = result.comment if result else str(mt5.last_error())
+        return {"status": "FAILED", "reason": err_msg}
+
     def close_position(self, ticket: int, volume: Optional[float] = None) -> Dict[str, Any]:
         """Closes a specific open MT5 position (full or partial) by ticket."""
         if self.mode == "paper" or not MT5_AVAILABLE or not self.is_connected:
