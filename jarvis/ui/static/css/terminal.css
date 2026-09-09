@@ -3181,3 +3181,12 @@ header.terminal-hud {
         grid-template-columns: 1fr 1fr;
     }
 }
+
+.execution-mode-management .dropdown-header-title {
+    margin-top: 5px;
+}
+
+.execution-mode-management .dropdown-item.active {
+    background: rgba(56, 189, 248, 0.12);
+    border-left: 2px solid var(--accent-cyan);
+}

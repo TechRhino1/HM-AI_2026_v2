@@ -858,6 +858,7 @@
                 state.activeMarketStatus = data.active_market_status || null;
 
                 renderTelemetryDOM();
+                syncExecutionModeControls();
             }
         } catch (err) {
             console.error("Telemetry fetch error:", err);
@@ -2929,6 +2930,50 @@
         }
     };
 
+    function syncExecutionModeControls() {
+        const management = document.getElementById("execution-mode-management");
+        const user = window.HM_AUTH && window.HM_AUTH.getUser ? window.HM_AUTH.getUser() : null;
+        const isAdmin = user && user.role === "ADMIN";
+        if (management) management.hidden = !isAdmin;
+        const mode = (state.executionMode || "LIVE").toUpperCase();
+        const liveBtn = document.getElementById("btn-user-mode-live");
+        const paperBtn = document.getElementById("btn-user-mode-paper");
+        if (liveBtn) liveBtn.classList.toggle("active", mode === "LIVE");
+        if (paperBtn) paperBtn.classList.toggle("active", mode === "PAPER");
+    }
+
+    window.setExecutionMode = async function (mode) {
+        const targetMode = (mode || "").toUpperCase();
+        if (!new Set(["LIVE", "PAPER"]).has(targetMode)) return;
+        if (targetMode === state.executionMode) {
+            window.closeAllDropdowns();
+            return;
+        }
+        const warning = targetMode === "LIVE"
+            ? "Switch to LIVE account? New manual orders will be sent to the connected MT5 account."
+            : "Switch to PAPER trading? New manual orders will be simulated and will not reach MT5.";
+        if (!confirm(warning)) return;
+        try {
+            const res = await fetch("/api/action/set_mode", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode: targetMode })
+            });
+            const data = await res.json();
+            if (!res.ok || data.status !== "SUCCESS") {
+                alert(`Mode change failed: ${data.error || "Not authorized"}`);
+                return;
+            }
+            state.executionMode = data.mode;
+            syncExecutionModeControls();
+            window.closeAllDropdowns();
+            fetchTelemetry();
+        } catch (err) {
+            console.error("Execution mode change error:", err);
+            alert("Could not change execution mode.");
+        }
+    };
+
     window.refreshData = function () {
         fetchCandles();
         fetchTelemetry();
@@ -3062,12 +3107,6 @@
         if (!token) {
             try { token = sessionStorage.getItem("jarvis_auth_token") || ""; } catch (e) {}
         }
-        if (!token && typeof document !== "undefined" && document.cookie) {
-            try {
-                const match = document.cookie.match(/(?:^|; )jarvis_auth_token=([^;]*)/);
-                if (match) token = decodeURIComponent(match[1]);
-            } catch (e) {}
-        }
         return token;
     };
 
@@ -3091,14 +3130,10 @@
             } catch (e) {}
         }
 
-        if (!token) {
-            if (modal) modal.style.display = "flex";
-            return false;
-        }
         try {
             const res = await fetch("/api/auth/verify", {
                 method: "POST",
-                headers: { "Authorization": `Bearer ${token}` }
+                headers: { "Content-Type": "application/json" }
             });
             if (res.status === 401) {
                 if (window.HM_AUTH) window.HM_AUTH.clearSession();
@@ -3160,14 +3195,10 @@
                 submitBtn.textContent = "UNLOCK REMOTE TERMINAL ➔";
             }
 
-            if (res.ok && data && data.token) {
+            if (res.ok && data && data.status === "AUTHENTICATED") {
                 // Multi-storage persistence via HM_AUTH
                 if (window.HM_AUTH) {
                     window.HM_AUTH.saveSession(data);
-                } else {
-                    try { localStorage.setItem("jarvis_auth_token", data.token); } catch (e) {}
-                    try { sessionStorage.setItem("jarvis_auth_token", data.token); } catch (e) {}
-                    try { document.cookie = "jarvis_auth_token=" + encodeURIComponent(data.token) + "; path=/; max-age=2592000; SameSite=Lax"; } catch (e) {}
                 }
 
                 if (!rememberEl || rememberEl.checked) {

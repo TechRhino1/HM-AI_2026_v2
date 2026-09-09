@@ -15,16 +15,6 @@
             if (!token) {
                 try { token = sessionStorage.getItem(AUTH_STORAGE_KEY) || ""; } catch (e) {}
             }
-            if (!token && typeof document !== "undefined" && document.cookie) {
-                try {
-                    const match = document.cookie.match(new RegExp("(?:^|; )" + AUTH_STORAGE_KEY + "=([^;]*)"));
-                    if (match) token = decodeURIComponent(match[1]);
-                } catch (e) {}
-            }
-            if (token) {
-                try { localStorage.setItem(AUTH_STORAGE_KEY, token); } catch (e) {}
-                try { sessionStorage.setItem(AUTH_STORAGE_KEY, token); } catch (e) {}
-            }
             return token || "";
         },
 
@@ -46,10 +36,7 @@
         },
 
         saveSession: function (data) {
-            if (!data || !data.token) return;
-            const token = data.token;
-            try { localStorage.setItem(AUTH_STORAGE_KEY, token); } catch (e) {}
-            try { sessionStorage.setItem(AUTH_STORAGE_KEY, token); } catch (e) {}
+            if (!data || !data.status) return;
 
             const userInfo = {
                 username: data.username || "admin",
@@ -60,10 +47,6 @@
                 localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userInfo));
                 sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userInfo));
                 localStorage.setItem("jarvis_remembered_user", userInfo.username);
-            } catch (e) {}
-
-            try {
-                document.cookie = `${AUTH_STORAGE_KEY}=${encodeURIComponent(token)}; path=/; max-age=2592000; SameSite=Lax`;
             } catch (e) {}
 
             this.updateHeaderUI(userInfo);
@@ -83,18 +66,10 @@
         },
 
         verifyToken: async function () {
-            const token = this.getToken();
-            if (!token) {
-                this.updateHeaderUI(null);
-                return false;
-            }
             try {
                 const res = await fetch("/api/auth/verify", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}`
-                    }
+                    headers: { "Content-Type": "application/json" }
                 });
                 if (res.status === 401) {
                     this.clearSession();
@@ -103,12 +78,6 @@
                 const data = await res.json();
                 if (data && data.valid) {
                     const user = data.user || { username: "admin", role: "ADMIN" };
-                    if (data.token) {
-                        try {
-                            localStorage.setItem(AUTH_STORAGE_KEY, data.token);
-                            sessionStorage.setItem(AUTH_STORAGE_KEY, data.token);
-                        } catch (e) {}
-                    }
                     try {
                         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
                         sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
@@ -135,7 +104,7 @@
                     body: JSON.stringify({ username: (username || "").trim(), password: (password || "").trim() })
                 });
                 const data = await res.json();
-                if (res.ok && data && data.token) {
+                if (res.ok && data && data.status === "AUTHENTICATED") {
                     this.saveSession(data);
                     return { success: true, data: data };
                 } else {
@@ -147,19 +116,10 @@
         },
 
         logout: async function () {
-            const token = this.getToken();
-            if (token) {
-                try {
-                    await fetch("/api/auth/logout", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
-                } catch (e) {
-                    console.warn("Logout API notice:", e);
-                }
+            try {
+                await fetch("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" } });
+            } catch (e) {
+                console.warn("Logout API notice:", e);
             }
             this.clearSession();
             this.openLoginModal("Session ended. Please log in to continue.");

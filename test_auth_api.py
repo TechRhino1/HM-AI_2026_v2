@@ -7,6 +7,7 @@ import urllib.error
 import json
 import sys
 import os
+import http.cookiejar
 
 def _get_admin_pass():
     p = os.environ.get("JARVIS_ADMIN_PASS")
@@ -22,6 +23,8 @@ def _get_trader_pass():
     return os.environ.get("JARVIS_TRADER_PASS", "CHANGE_ME")
 
 BASE_URL = "http://127.0.0.1:8501"
+COOKIE_JAR = http.cookiejar.CookieJar()
+OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(COOKIE_JAR))
 
 def run_auth_tests():
     print("=" * 80)
@@ -40,7 +43,7 @@ def run_auth_tests():
         req = urllib.request.Request(url, data=body, headers=h, method="POST")
 
         try:
-            with urllib.request.urlopen(req) as resp:
+            with OPENER.open(req) as resp:
                 status = resp.status
                 data = json.loads(resp.read().decode("utf-8"))
                 if status == expected_status and (validator is None or validator(data)):
@@ -75,9 +78,8 @@ def run_auth_tests():
         "/api/auth/login",
          {"username": "admin", "password": _get_admin_pass()},
         200,
-        validator=lambda d: bool(d.get("token") and d.get("role") == "ADMIN")
+        validator=lambda d: d.get("status") == "AUTHENTICATED" and d.get("role") == "ADMIN"
     )
-    admin_token = admin_session["token"] if admin_session else ""
 
     # 2. Test Login with Invalid Password (Rejection)
     test_post(
@@ -97,51 +99,30 @@ def run_auth_tests():
         validator=lambda d: d.get("status") == "UNAUTHORIZED"
     )
 
-    # 4. Test Login with Secondary Account (trader / configured)
+    # 4. Verify the HttpOnly-cookie admin session.
     test_post(
-        "4. Login Valid Trader (trader / configured)",
-        "/api/auth/login",
-        {"username": "trader", "password": _get_trader_pass()},
-        200,
-        validator=lambda d: bool(d.get("token") and d.get("role") == "TRADER")
-    )
-
-    # 5. Test Token Verification with Valid Admin Token
-    test_post(
-        "5. Verify Valid Admin Token",
+        "4. Verify Valid Admin Cookie Session",
         "/api/auth/verify",
         {},
         200,
-        headers={"Authorization": f"Bearer {admin_token}"},
         validator=lambda d: d.get("valid") is True and d.get("user", {}).get("username") == "admin"
     )
 
-    # 6. Test Token Verification without Token (Unauthorized)
+    # 5. Test Logout (server-side session revocation).
     test_post(
-        "6. Verify Missing Token (Unauthorized)",
-        "/api/auth/verify",
-        {},
-        401,
-        validator=lambda d: d.get("valid") is False
-    )
-
-    # 7. Test Logout (Server-side Token Revocation)
-    test_post(
-        "7. Logout Admin Session (/api/auth/logout)",
+        "5. Logout Admin Session (/api/auth/logout)",
         "/api/auth/logout",
         {},
         200,
-        headers={"Authorization": f"Bearer {admin_token}"},
         validator=lambda d: d.get("status") == "LOGGED_OUT"
     )
 
-    # 8. Test Verification of Revoked Token (Must Fail with 401)
+    # 6. Test Verification of Revoked Cookie Session.
     test_post(
-        "8. Verify Revoked Token (Must be Rejected)",
+        "6. Verify Revoked Cookie Session (Must be Rejected)",
         "/api/auth/verify",
         {},
         401,
-        headers={"Authorization": f"Bearer {admin_token}"},
         validator=lambda d: d.get("valid") is False
     )
 

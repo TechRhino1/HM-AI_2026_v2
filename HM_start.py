@@ -219,24 +219,23 @@ def _start_background_tunnel(port: int = 8501):
     t_cf = threading.Thread(target=_cloudflare_worker, args=(port,), daemon=True, name="hm_tunnel_cf")
     t_cf.start()
 
-def hm_start(mode: str = "live", port: int = 8501, host: str = "0.0.0.0", trade_style: str = "ALL"):
+def hm_start(mode: str = "live", port: int = 8501, host: str = "127.0.0.1", trade_style: str = "ALL"):
     local_ip = get_local_wifi_ip()
 
-    # 1. Launch Parallel Mobile Tunnels
-    tunnel_thread = threading.Thread(target=_start_background_tunnel, args=(port,), daemon=True, name="hm_mobile_tunnel")
-    tunnel_thread.start()
+    # Remote tunnels are opt-in: they expose a trading terminal outside the host.
+    enable_tunnel = os.environ.get("JARVIS_ENABLE_TUNNEL", "").lower() in {"1", "true", "yes"}
+    if enable_tunnel:
+        tunnel_thread = threading.Thread(target=_start_background_tunnel, args=(port,), daemon=True, name="hm_mobile_tunnel")
+        tunnel_thread.start()
 
     print("=" * 95, flush=True)
     print("                 HM AI 4.0 — INSTITUTIONAL QUANTITATIVE TRADING PLATFORM", flush=True)
     print("=" * 95, flush=True)
     print(f" -> Mode                       : {mode.upper()}", flush=True)
     print(f" -> Trade Style                : {trade_style.upper()}", flush=True)
-    print(f" -> Remote Access Server       : http://{host}:{port}", flush=True)
-    print(f" -> Permanent Local Wi-Fi Link : http://{local_ip}:{port}", flush=True)
-    print(f" -> Custom Subdomain HTTPS     : https://hm2026.serveousercontent.com", flush=True)
-    print(f" -> High-Speed Cloudflare Edge : establishing...", flush=True)
-    print(f" -> Admin Username             : admin", flush=True)
-    print(f" -> Admin Password             : admin (or Hms@2026)", flush=True)
+    print(f" -> Local Terminal             : http://{host}:{port}", flush=True)
+    print(f" -> Local Network Address      : {local_ip} (not exposed by default)", flush=True)
+    print(f" -> Remote Tunnel              : {'enabled' if enable_tunnel else 'disabled'}", flush=True)
     print("=" * 95, flush=True)
 
     # 2. Start Autonomous Orchestrator
@@ -249,7 +248,7 @@ def hm_start(mode: str = "live", port: int = 8501, host: str = "0.0.0.0", trade_
     logger.info(f"Starting Remote Access Web Terminal at http://{host}:{port}...")
     while True:
         try:
-            run_web_server(port=port, host=host)
+            run_web_server(port=port, host=host, mt5_client=orchestrator.mt5_client)
         except KeyboardInterrupt:
             logger.info("Shutting down HM AI 4.0 trading platform...")
             orchestrator.stop()

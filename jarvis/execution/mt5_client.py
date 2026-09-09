@@ -5,6 +5,7 @@ Provides a thread-safe, timeout-guarded connection to MetaTrader 5 with automati
 import os
 import time
 import logging
+import math
 import threading
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
@@ -252,6 +253,12 @@ class MT5Client:
         tp_price: float,
         comment: str = "JARVIS_3.0"
     ) -> Dict[str, Any]:
+        if self.mode not in {"live", "demo", "paper"}:
+            return {"status": "BLOCKED", "reason": f"Execution is disabled (mode={self.mode})"}
+        if order_type not in {"BUY", "SELL"}:
+            return {"status": "FAILED", "reason": "order_type must be BUY or SELL"}
+        if not isinstance(volume, (int, float)) or not math.isfinite(volume) or volume <= 0:
+            return {"status": "FAILED", "reason": "volume must be a positive finite number"}
         self._reconnect_if_needed()
         resolved = self.resolve_symbol_name(symbol)
         

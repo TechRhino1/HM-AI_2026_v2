@@ -85,12 +85,12 @@ class RemoteAuthEngine:
     """
     _tokens: Dict[str, float] = {}       # token -> expiration timestamp (30 days validity)
     _revoked_tokens: set = set()          # set of revoked tokens (logged out)
-    _token_ttl: float = 30 * 86400.0     # 30 days in seconds (persistent institutional session)
+    _token_ttl: float = 8 * 3600.0       # Short-lived browser session
 
     # Failed login attempts tracker for brute force protection
     _failed_attempts: Dict[str, List[float]] = {}
     _lockout_duration_sec: float = 60.0
-    _max_failed_attempts: int = 10
+    _max_failed_attempts: int = 5
 
     # In-memory user database with salted hashes and roles
     _users: Dict[str, Dict[str, Any]] = {}
@@ -98,16 +98,6 @@ class RemoteAuthEngine:
     @classmethod
     def is_local_client(cls, client_ip: str) -> bool:
         """Checks whether the client IP represents a local/private network address."""
-        if not client_ip:
-            return True
-        cip = client_ip.strip().lower()
-        if cip in ("localhost", "127.0.0.1", "::1", "global"):
-            return True
-        for pfx in ("127.", "192.168.", "10.", "172.16.", "172.17.", "172.18.", "172.19.",
-                    "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.",
-                    "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31."):
-            if cip.startswith(pfx):
-                return True
         return False
 
     @classmethod
@@ -116,8 +106,6 @@ class RemoteAuthEngine:
         Checks if identifier (IP or username) is currently locked out.
         Returns (is_allowed, seconds_remaining).
         """
-        if cls.is_local_client(identifier):
-            return True, 0
         now = time.time()
         key = (identifier or "client").strip().lower()
         attempts = cls._failed_attempts.get(key, [])
@@ -167,15 +155,16 @@ class RemoteAuthEngine:
 
         # 1. Primary Admin Account
         admin_pass = DEFAULT_PASS_RAW.strip() if DEFAULT_PASS_RAW else secrets.token_urlsafe(18)
-        cls._users["admin"] = _make_user_record("admin", admin_pass, "ADMIN", "System Administrator")
+        admin_user = ADMIN_USERNAME.strip().lower()
+        cls._users[admin_user] = _make_user_record(admin_user, admin_pass, "ADMIN", "System Administrator")
 
-        # 2. Trader Account
-        trader_pass = os.environ.get("JARVIS_TRADER_PASS") or "trader"
-        cls._users["trader"] = _make_user_record("trader", trader_pass, "TRADER", "Senior Algo Trader")
-
-        # 3. Viewer/Demo Account
-        demo_pass = os.environ.get("JARVIS_DEMO_PASS") or "demo"
-        cls._users["demo"] = _make_user_record("demo", demo_pass, "VIEWER", "Demo Guest Account")
+        # Additional accounts are opt-in.  Never create predictable credentials.
+        for username, password, role, full_name in (
+            (os.environ.get("JARVIS_TRADER_USER", "trader"), os.environ.get("JARVIS_TRADER_PASS"), "TRADER", "Senior Algo Trader"),
+            (os.environ.get("JARVIS_DEMO_USER", "demo"), os.environ.get("JARVIS_DEMO_PASS"), "VIEWER", "Demo Guest Account"),
+        ):
+            if password and len(password.strip()) >= 12:
+                cls._users[username.strip().lower()] = _make_user_record(username, password.strip(), role, full_name)
 
     @classmethod
     def _hash_password(cls, password: str, salt: str = None) -> str:
@@ -226,15 +215,7 @@ class RemoteAuthEngine:
         user_key = (username or "").strip().lower()
         pwd = (password_raw or "").strip()
 
-        # Map common aliases
-        if user_key in ("administrator", "root", "superadmin"):
-            user_key = "admin"
-        elif user_key in ("user", "trader1", "algo"):
-            user_key = "trader"
-        elif user_key in ("guest", "visitor"):
-            user_key = "demo"
-
-        # Check rate limits for remote clients
+        # Check rate limits for every client.  Local addresses must not bypass it.
         allowed_ip, remaining_ip = cls.check_rate_limit(client_ip or "")
         if not allowed_ip:
             return None, f"Too many failed login attempts. Account temporarily locked for {remaining_ip}s."
@@ -247,53 +228,20 @@ class RemoteAuthEngine:
             return None, "Username and password required"
 
         user_data = cls._users.get(user_key)
-        if not user_data and user_key != "admin":
+        if not user_data:
             cls.record_failed_attempt(client_ip or "")
             cls.record_failed_attempt(user_key)
             return None, "Invalid username or password"
 
-        # Multi-password verification:
-        # 1. Configured password hash
-        is_valid = False
-        if user_data and cls._verify_password(pwd, user_data.get("password_hash", "")):
-            is_valid = True
-
-        # 2. Administrative standard passwords for 'admin'
-        if not is_valid and user_key == "admin":
-            allowed_admin_passwords = {
-                DEFAULT_PASS_RAW.strip() if DEFAULT_PASS_RAW else "",
-                "admin",
-                "admin123",
-                "hm2026",
-                "hms2026",
-                "Hms@2026",
-                "123456",
-                "password",
-                "HM-AI_2026",
-            }
-            allowed_admin_passwords.discard("")
-            if pwd in allowed_admin_passwords:
-                is_valid = True
-
-        # 3. Standard passwords for 'trader'
-        if not is_valid and user_key == "trader":
-            if pwd in ("trader", "trader123", "admin", "Hms@2026", "123456", "CHANGE_ME"):
-                is_valid = True
-
-        # 4. Standard passwords for 'demo'
-        if not is_valid and user_key == "demo":
-            if pwd in ("demo", "guest", "demo123", "123456"):
-                is_valid = True
+        is_valid = cls._verify_password(pwd, user_data.get("password_hash", ""))
 
         if is_valid:
             cls.record_successful_login(client_ip or "")
             cls.record_successful_login(user_key)
-            role = "ADMIN" if user_key == "admin" else ("TRADER" if user_key == "trader" else "VIEWER")
-            full_name = "System Administrator" if user_key == "admin" else ("Senior Algo Trader" if user_key == "trader" else "Demo Guest")
             return {
                 "username": user_key,
-                "role": user_data.get("role", role) if user_data else role,
-                "full_name": user_data.get("full_name", full_name) if user_data else full_name
+                "role": user_data["role"],
+                "full_name": user_data["full_name"]
             }, ""
 
         cls.record_failed_attempt(client_ip or "")
@@ -308,10 +256,9 @@ class RemoteAuthEngine:
         """
         cls._init_default_users()
         user_key = (username or "").strip().lower()
-        if user_key in ("administrator", "root"):
-            user_key = "admin"
-        default_role = "ADMIN" if user_key == "admin" else ("TRADER" if user_key == "trader" else "VIEWER")
-        user_data = cls._users.get(user_key, {"role": default_role, "full_name": user_key.title()})
+        user_data = cls._users.get(user_key)
+        if not user_data:
+            raise ValueError("Cannot create a session for an unknown user")
 
         timestamp = str(time.time())
         nonce = secrets.token_hex(16)
@@ -328,7 +275,7 @@ class RemoteAuthEngine:
         return {
             "token": token,
             "username": user_key,
-            "role": user_data.get("role", default_role),
+            "role": user_data["role"],
             "full_name": user_data.get("full_name", user_key.title()),
             "expires_at": expires_at,
             "status": "AUTHENTICATED"
@@ -355,6 +302,10 @@ class RemoteAuthEngine:
         now = time.time()
         # Clean up expired tokens
         cls._tokens = {t: exp for t, exp in cls._tokens.items() if exp > now}
+        # A valid signature alone is not a session.  Requiring the server-side
+        # allow-list makes logout effective and invalidates sessions on restart.
+        if token not in cls._tokens:
+            return None
 
         try:
             parts = token.split(":")
@@ -366,12 +317,13 @@ class RemoteAuthEngine:
                     ts = float(ts_str)
                     if (now - ts) < cls._token_ttl:
                         cls._tokens[token] = now + cls._token_ttl
-                        default_role = "ADMIN" if username.lower() == "admin" else "TRADER"
-                        user_data = cls._users.get(username.lower(), {"role": default_role, "full_name": username.title()})
+                        user_data = cls._users.get(username.lower())
+                        if not user_data:
+                            return None
                         return {
                             "valid": True,
                             "username": username.lower(),
-                            "role": user_data.get("role", default_role),
+                            "role": user_data["role"],
                             "full_name": user_data.get("full_name", username.title()),
                             "expires_at": now + cls._token_ttl,
                             "token": token

@@ -17,6 +17,7 @@ from jarvis.application.orchestrator import JarvisOrchestrator
 from jarvis.api.server import run_web_server
 from jarvis.backtesting.engine import BacktestEngine
 from jarvis.market.data_feed import DataFeedEngine
+from jarvis.config.settings import SETTINGS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,12 +28,13 @@ logger = logging.getLogger("JARVIS_Main")
 
 def main():
     parser = argparse.ArgumentParser(description="JARVIS AI 3.0 — Professional Trading Intelligence Platform")
-    parser.add_argument("--mode", type=str, default="live", choices=["paper", "live", "demo"], help="Execution mode")
+    parser.add_argument("--mode", type=str, default=SETTINGS.trading.default_mode, choices=["paper", "live", "demo"], help="Execution mode")
 
     parser.add_argument("--symbol", type=str, default="XAUUSD", help="Primary target symbol")
     parser.add_argument("--once", action="store_true", help="Run a single analytical radar sweep and exit")
     parser.add_argument("--backtest", action="store_true", help="Run historical backtest and exit")
-    parser.add_argument("--port", type=int, default=8501, help="Web terminal port")
+    parser.add_argument("--port", type=int, default=SETTINGS.server.port, help="Web terminal port")
+    parser.add_argument("--host", type=str, default=SETTINGS.server.host, help="Web server bind address")
     args = parser.parse_args()
 
     if args.backtest:
@@ -65,10 +67,15 @@ def main():
     orchestrator.start()
 
     # Start Web Dashboard Server in background thread or main
-    server_thread = threading.Thread(target=run_web_server, args=(args.port,), daemon=True, name="web_server")
+    server_thread = threading.Thread(
+        target=run_web_server,
+        kwargs={"port": args.port, "host": args.host, "mt5_client": orchestrator.mt5_client},
+        daemon=True,
+        name="web_server"
+    )
     server_thread.start()
 
-    logger.info(f"JARVIS 3.0 is ONLINE in {args.mode.upper()} mode. Web Terminal at http://localhost:{args.port}")
+    logger.info(f"JARVIS 3.0 is ONLINE in {args.mode.upper()} mode. Web Terminal at http://{args.host}:{args.port}")
     try:
         while True:
             time.sleep(1.0)

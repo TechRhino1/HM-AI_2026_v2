@@ -6,6 +6,7 @@ import os
 import json
 import logging
 import mimetypes
+import math
 from datetime import datetime, timezone
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
@@ -21,6 +22,7 @@ from jarvis.data.schemas import ExecutionMode
 from jarvis.data.symbol_registry import resolve as resolve_symbol
 from jarvis.market.sessions import SessionEngine
 from jarvis.api.remote_auth import RemoteAuthEngine
+from jarvis.config.settings import SETTINGS
 
 logger = logging.getLogger("JARVIS_WebServer")
 
@@ -36,6 +38,12 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
     
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     root_dir = os.path.dirname(base_dir)
+
+    @classmethod
+    def configure_broker(cls, mt5_client: MT5Client):
+        """Use the application's single broker client for API and orchestration work."""
+        cls.mt5_client = mt5_client
+        cls.data_feed = DataFeedEngine(mt5_client=mt5_client)
 
     def _extract_token(self) -> str:
         auth_header = self.headers.get("Authorization", "")
@@ -54,15 +62,18 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
             except Exception:
                 pass
 
-        if not token and hasattr(self, "path") and "?" in self.path:
-            try:
-                q = parse_qs(urlparse(self.path).query)
-                if "token" in q:
-                    token = q["token"][0].strip()
-            except Exception:
-                pass
-
         return token
+
+    @staticmethod
+    def _allowed_cors_origin(request_origin: str = "") -> str:
+        configured = os.environ.get("JARVIS_CORS_ORIGIN", SETTINGS.server.cors_origin).strip()
+        return configured if configured and request_origin == configured else ""
+
+    def _session_cookie(self, token: str, max_age: int) -> str:
+        attrs = [f"jarvis_auth_token={token}", "Path=/", f"Max-Age={max_age}", "HttpOnly", "SameSite=Strict"]
+        if os.environ.get("JARVIS_COOKIE_SECURE", "").lower() in {"1", "true", "yes"}:
+            attrs.append("Secure")
+        return "; ".join(attrs)
 
     def _get_auth_user(self) -> Optional[Dict[str, Any]]:
         token = self._extract_token()
@@ -238,6 +249,14 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
 
         try:
+            if path.startswith("/api/") and path not in ("/api/auth/me", "/api/auth/verify") and not self._check_auth():
+                self._send_json({"status": "UNAUTHORIZED", "error": "Authentication required"}, status_code=401)
+                return
+            privileged_gets = {"/api/telemetry_state", "/api/telemetry", "/api/history", "/api/tunnel_info", "/api/diagnostics", "/api/stream/telemetry"}
+            if path in privileged_gets:
+                ok, _ = self._require_role("ADMIN", "TRADER")
+                if not ok:
+                    return
             if path == "/" or path == "/index.html":
                 self._serve_terminal_ui()
             elif path in ["/stocks", "/stocks.html", "/screener"]:
@@ -289,7 +308,7 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
                 from jarvis.historical.historical_engine import HISTORICAL_DATA_ENGINE
                 sym = query.get("symbol", ["XAUUSD"])[0]
                 tf = query.get("timeframe", query.get("tf", ["H1"]))[0]
-                bars = int(query.get("num_bars", query.get("bars", [200]))[0])
+                bars = max(1, min(5000, int(query.get("num_bars", query.get("bars", [200]))[0])))
                 with_reg = query.get("with_regimes", ["false"])[0].lower() in ("true", "1")
                 df = HISTORICAL_DATA_ENGINE.get_market_data(sym, tf, num_bars=bars, with_regimes=with_reg)
                 records = df.to_dict(orient="records") if not df.empty else []
@@ -363,7 +382,7 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
                 sym = query.get("symbol", ["XAUUSD"])[0]
                 tf = query.get("tf", query.get("timeframe", ["H1"]))[0]
                 trade_style = query.get("trade_style", [None])[0]
-                bars = int(query.get("num_bars", query.get("bars", [150]))[0])
+                bars = max(1, min(5000, int(query.get("num_bars", query.get("bars", [150]))[0])))
                 if trade_style:
                     mtf = self.data_feed.fetch_multi_timeframe(sym, trade_style=trade_style, num_bars=bars)
                     res = {}
@@ -469,7 +488,7 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "text/event-stream")
                 self.send_header("Cache-Control", "no-cache")
                 self.send_header("Connection", "keep-alive")
-                cors_origin = os.environ.get("JARVIS_CORS_ORIGIN", "*")
+                cors_origin = self._allowed_cors_origin(self.headers.get("Origin", ""))
                 if cors_origin:
                     self.send_header("Access-Control-Allow-Origin", cors_origin)
                 self.end_headers()
@@ -523,10 +542,12 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         try:
             self.send_response(200)
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
-            self.send_header("Access-Control-Allow-Headers", "*")
-            self.send_header("Access-Control-Max-Age", "86400")
+            cors_origin = self._allowed_cors_origin(self.headers.get("Origin", ""))
+            if cors_origin:
+                self.send_header("Access-Control-Allow-Origin", cors_origin)
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+                self.send_header("Access-Control-Max-Age", "86400")
             self.end_headers()
         except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
             pass
@@ -537,6 +558,9 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
 
         try:
             content_length = int(self.headers.get("Content-Length", 0))
+            if content_length < 0 or content_length > 1_048_576:
+                self._send_json({"status": "FAILED", "error": "Request body is too large"}, status_code=413)
+                return
             body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
             try:
                 data = json.loads(body)
@@ -546,15 +570,14 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
             if path == "/api/auth/login":
                 username = data.get("username", "").strip()
                 password = data.get("password", "").strip()
-                client_ip = self.headers.get("X-Forwarded-For", self.client_address[0] if hasattr(self, "client_address") and self.client_address else "")
-                if "," in client_ip:
-                    client_ip = client_ip.split(",")[0].strip()
+                client_ip = self.client_address[0] if hasattr(self, "client_address") and self.client_address else ""
                 user_info, err_msg = RemoteAuthEngine.verify_credentials(username, password, client_ip=client_ip)
                 if user_info:
                     session_info = RemoteAuthEngine.create_session_token(username)
                     token = session_info["token"]
-                    cookie_header = f"jarvis_auth_token={token}; Path=/; Max-Age=2592000; SameSite=Lax"
-                    self._send_json(session_info, cookies=[cookie_header])
+                    cookie_header = self._session_cookie(token, int(RemoteAuthEngine._token_ttl))
+                    public_session = {k: v for k, v in session_info.items() if k != "token"}
+                    self._send_json(public_session, cookies=[cookie_header])
                 else:
                     status_code = 429 if "locked" in (err_msg or "").lower() else 401
                     self._send_json({"status": "UNAUTHORIZED" if status_code == 401 else "LOCKED", "error": err_msg or "Invalid username or password"}, status_code=status_code)
@@ -562,16 +585,17 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
             elif path == "/api/auth/logout":
                 token = self._extract_token()
                 RemoteAuthEngine.revoke_token(token)
-                logout_cookie = "jarvis_auth_token=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax"
+                logout_cookie = self._session_cookie("", 0) + "; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
                 self._send_json({"status": "LOGGED_OUT", "message": "Session terminated successfully"}, cookies=[logout_cookie])
                 return
             elif path == "/api/auth/verify":
                 user = self._get_auth_user()
                 if user:
                     token = user.get("token") or self._extract_token()
-                    refresh_cookie = f"jarvis_auth_token={token}; Path=/; Max-Age=2592000; SameSite=Lax" if token else None
+                    refresh_cookie = self._session_cookie(token, int(RemoteAuthEngine._token_ttl)) if token else None
                     cookies = [refresh_cookie] if refresh_cookie else None
-                    self._send_json({"status": "AUTHENTICATED", "valid": True, "user": user, "token": token}, cookies=cookies)
+                    public_user = {k: v for k, v in user.items() if k != "token"}
+                    self._send_json({"status": "AUTHENTICATED", "valid": True, "user": public_user}, cookies=cookies)
                 else:
                     self._send_json({"status": "UNAUTHORIZED", "valid": False, "error": "Invalid or expired session"}, status_code=401)
                 return
@@ -590,8 +614,12 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
                 return
 
             # Protected Action Endpoints — Require Authentication + appropriate role
-            if path.startswith("/api/action/"):
+            if path.startswith("/api/action/") or path.startswith("/api/historical/"):
                 ok, _ = self._require_role("ADMIN", "TRADER")
+                if not ok:
+                    return
+            if path == "/api/action/set_mode":
+                ok, _ = self._require_role("ADMIN")
                 if not ok:
                     return
             elif path.startswith("/api/copilot/"):
@@ -640,6 +668,7 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
                 try:
                     mode = ExecutionMode(mode_str)
                     self.state_manager.set_execution_mode(mode)
+                    self.mt5_client.mode = mode.value.lower()
                     self._send_json({"status": "SUCCESS", "mode": mode.value})
                 except Exception as e:
                     self._send_json({"status": "FAILED", "error": str(e)}, status_code=400)
@@ -668,6 +697,12 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
                 tp = float(data.get("tp", data.get("tp_price", 0.0)))
                 comment = data.get("comment", "JARVIS_ManualDesk")
                 current_price = float(data.get("price", data.get("current_price", 0.0)))
+                if action not in {"BUY", "SELL"}:
+                    self._send_json({"status": "FAILED", "error": "action must be BUY or SELL"}, status_code=400)
+                    return
+                if not math.isfinite(lots) or lots <= 0:
+                    self._send_json({"status": "FAILED", "error": "lots must be a positive finite number"}, status_code=400)
+                    return
 
                 # If sl <= 0 or tp <= 0, compute AI structural levels
                 if sl <= 0 or tp <= 0:
@@ -684,6 +719,9 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
                             tp = float(ai_levels.get("tp", 0.0))
                     except Exception as ex:
                         logger.error(f"Error computing AI structural levels for {sym}: {ex}")
+                if not all(math.isfinite(v) and v > 0 for v in (sl, tp)):
+                    self._send_json({"status": "FAILED", "error": "Valid stop-loss and take-profit are required"}, status_code=400)
+                    return
 
                 res = self.mt5_client.send_market_order(
                     symbol=sym,
@@ -733,10 +771,11 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
             self.send_response(status_code)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(payload)))
-            cors_origin = os.environ.get("JARVIS_CORS_ORIGIN", "*")
-            self.send_header("Access-Control-Allow-Origin", cors_origin)
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
-            self.send_header("Access-Control-Allow-Headers", "*")
+            cors_origin = self._allowed_cors_origin(self.headers.get("Origin", ""))
+            if cors_origin:
+                self.send_header("Access-Control-Allow-Origin", cors_origin)
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
             if cookies:
                 for c in cookies:
                     if c:
@@ -845,14 +884,22 @@ class JarvisRequestHandler(BaseHTTPRequestHandler):
     def _serve_options_ui(self):
         self._serve_template("india_options.html")
 
-def start_server(host: str = "0.0.0.0", port: int = 8501) -> ThreadingHTTPServer:
+def start_server(host: str = "127.0.0.1", port: int = 8501, mt5_client: Optional[MT5Client] = None) -> ThreadingHTTPServer:
+    if host not in {"127.0.0.1", "::1", "localhost"} and os.environ.get("JARVIS_COOKIE_SECURE", "").lower() not in {"1", "true", "yes"}:
+        raise ValueError("Remote binding requires HTTPS session cookies: set JARVIS_COOKIE_SECURE=1 behind TLS.")
+    if mt5_client:
+        JarvisRequestHandler.configure_broker(mt5_client)
     ThreadingHTTPServer.allow_reuse_address = True
     server = ThreadingHTTPServer((host, port), JarvisRequestHandler)
     JarvisRequestHandler.start_background_syncer()
     logger.info(f"JARVIS AI 3.0 Web Terminal Server running at http://{host}:{port}")
     return server
 
-def run_web_server(port: int = 8501, host: str = "0.0.0.0"):
+def run_web_server(port: int = 8501, host: str = "127.0.0.1", mt5_client: Optional[MT5Client] = None):
+    if host not in {"127.0.0.1", "::1", "localhost"} and os.environ.get("JARVIS_COOKIE_SECURE", "").lower() not in {"1", "true", "yes"}:
+        raise ValueError("Remote binding requires HTTPS session cookies: set JARVIS_COOKIE_SECURE=1 behind TLS.")
+    if mt5_client:
+        JarvisRequestHandler.configure_broker(mt5_client)
     ThreadingHTTPServer.allow_reuse_address = True
     server = ThreadingHTTPServer((host, port), JarvisRequestHandler)
     JarvisRequestHandler.start_background_syncer()

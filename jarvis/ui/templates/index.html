@@ -218,6 +218,29 @@
                         </div>
                         <span class="item-badge badge-role">AUTH</span>
                     </button>
+                    <div id="execution-mode-management" class="execution-mode-management" hidden>
+                        <div class="dropdown-header-title">EXECUTION MODE</div>
+                        <button id="btn-user-mode-live" class="dropdown-item" onclick="window.setExecutionMode('LIVE')">
+                            <div class="dropdown-item-left">
+                                <span class="item-icon">🔴</span>
+                                <div class="item-text-stack">
+                                    <span class="item-main-title">Live Account</span>
+                                    <span class="item-sub-desc">Send orders to the connected MT5 account</span>
+                                </div>
+                            </div>
+                            <span class="item-badge">LIVE</span>
+                        </button>
+                        <button id="btn-user-mode-paper" class="dropdown-item" onclick="window.setExecutionMode('PAPER')">
+                            <div class="dropdown-item-left">
+                                <span class="item-icon">🧪</span>
+                                <div class="item-text-stack">
+                                    <span class="item-main-title">Paper Trading</span>
+                                    <span class="item-sub-desc">Simulate orders without broker execution</span>
+                                </div>
+                            </div>
+                            <span class="item-badge">PAPER</span>
+                        </button>
+                    </div>
                     <div class="dropdown-separator"></div>
                     <button class="dropdown-item item-danger" onclick="if(window.HM_AUTH) window.HM_AUTH.logout(); else if(window.RemoteAuthUI) window.RemoteAuthUI.logout(); window.closeAllDropdowns();">
                         <div class="dropdown-item-left">

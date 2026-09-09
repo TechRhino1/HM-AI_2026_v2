@@ -32,9 +32,9 @@ class TradingSettings:
 
 @dataclass
 class ServerSettings:
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8501
-    cors_origin: str = "*"
+    cors_origin: str = ""
     rate_limit_lockout_sec: float = 60.0
     max_login_attempts: int = 5
 
@@ -71,6 +71,8 @@ class JarvisConfig:
                 if "max_open_positions" in r_data:
                     cfg.risk.max_open_positions = int(r_data["max_open_positions"])
                 t_data = data.get("trading", {})
+                if "default_mode" in t_data and str(t_data["default_mode"]).lower() in {"live", "paper", "demo"}:
+                    cfg.trading.default_mode = str(t_data["default_mode"]).lower()
                 if "allowed_symbols" in t_data:
                     cfg.trading.symbols = list(t_data["allowed_symbols"])
                 if "magic_number" in t_data:
@@ -79,7 +81,7 @@ class JarvisConfig:
                 logger.warning(f"Could not load config/settings.json: {e}")
 
         env_mode = os.environ.get("JARVIS_MODE")
-        if env_mode:
+        if env_mode and env_mode.lower() in {"live", "paper", "demo"}:
             cfg.trading.default_mode = env_mode.lower()
         env_port = os.environ.get("JARVIS_PORT")
         if env_port and env_port.isdigit():
