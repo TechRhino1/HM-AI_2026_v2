@@ -30,14 +30,27 @@ class ExecutionEngine:
 
         logger.info(f"DISPATCHING ORDER [{mode.value}]: {decision.bias} {lots} {decision.symbol} @ Entry={decision.entry_price} SL={decision.stop_loss} TP={decision.take_profit}")
 
-        res = self.mt5_client.send_market_order(
-            symbol=decision.symbol,
-            order_type=decision.bias,
-            volume=lots,
-            sl_price=decision.stop_loss,
-            tp_price=decision.take_profit,
-            comment=comment
-        )
+        order_kind = getattr(decision, "order_type", "MARKET").upper()
+        if "LIMIT" in order_kind or "PENDING" in order_kind:
+            limit_dir = "BUY_LIMIT" if decision.bias == "BUY" else "SELL_LIMIT"
+            res = self.mt5_client.place_pending_order(
+                symbol=decision.symbol,
+                order_type=limit_dir,
+                price=decision.entry_price,
+                volume=lots,
+                sl_price=decision.stop_loss,
+                tp_price=decision.take_profit,
+                comment=comment
+            )
+        else:
+            res = self.mt5_client.send_market_order(
+                symbol=decision.symbol,
+                order_type=decision.bias,
+                volume=lots,
+                sl_price=decision.stop_loss,
+                tp_price=decision.take_profit,
+                comment=comment
+            )
 
         # §2: Re-anchor SL/TP to actual fill price if slippage occurred
         if res and res.get("status") == "FILLED":

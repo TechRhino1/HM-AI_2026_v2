@@ -226,6 +226,7 @@ class DecisionObject:
     quality_gate: TradeQualityGateResult
     decision: str
     execution_authorized: bool = False
+    order_type: str = "MARKET"
     sl_distance: float = 0.0
     tp_distance: float = 0.0
     waiting_reasons: List[str] = field(default_factory=list)
