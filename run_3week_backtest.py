@@ -150,7 +150,7 @@ def run_3week_backtest():
         print(f"Loaded {len(df)} REAL MT5 H1 bars for {sym} [{broker_sym}] | {t_start} -> {t_end} | Price: {last_price}")
 
         spec = resolve_symbol(sym)
-        engine = BacktestEngine(initial_balance=10000.0, risk_per_trade_pct=0.5, commission_per_lot=5.0)
+        engine = BacktestEngine(initial_balance=10000.0, risk_per_trade_pct=0.75, commission_per_lot=5.0)
 
         res = engine.run_backtest(df, symbol=sym, spread_pips=spec.typical_spread_pips)
 

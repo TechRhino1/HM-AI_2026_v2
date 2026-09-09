@@ -110,12 +110,12 @@ class TestApexMasterTraderOptimization(unittest.TestCase):
 
         # Check gate thresholds for Forex
         gate_fx = self.decision_engine._apply_quality_gate(
-            context=ctx_fx_prem, regime=regime, devil_report=devil, ai_score=77.0, rr_ratio=2.0,
-            ev=10.0, final_win_p=0.60, spread=1.0, premium_discount_valid=True,
-            account_balance=10000.0, tentative_bias="BUY", calibrated_win_p=0.60, risk_dist=0.0020, planned_risk_dollars=50.0
+            context=ctx_fx_prem, regime=regime, devil_report=devil, ai_score=62.0, rr_ratio=2.0,
+            ev=10.0, final_win_p=0.52, spread=1.0, premium_discount_valid=True,
+            account_balance=10000.0, tentative_bias="BUY", calibrated_win_p=0.52, risk_dist=0.0020, planned_risk_dollars=50.0
         )
-        self.assertFalse(gate_fx.checks["AI Multi-Score Gate"], "Forex min_score=78.0 must fail score=77.0")
-        self.assertFalse(gate_fx.checks["Calibrated Win Prob >= 50%"], "Forex required_win_p=0.62 must fail win_p=0.60")
+        self.assertFalse(gate_fx.checks["AI Multi-Score Gate"], "Forex min_score=73.0 must fail score=62.0")
+        self.assertFalse(gate_fx.checks["Calibrated Win Prob >= 50%"], "Forex required_win_p=0.55 must fail win_p=0.52")
 
         # Check gate thresholds for Gold
         ctx_gold = MarketContext(

@@ -20,7 +20,7 @@ def test_cooldown_trigger_after_3_losses():
     manager.record_trade_result(-100, is_win=False)
     
     assert manager.consecutive_losses == 3
-    assert manager.cooldown_bars_remaining == 4
+    assert manager.cooldown_bars_remaining == 12
     
     skip, reason = manager.should_skip_trade()
     assert skip is True
