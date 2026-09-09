@@ -261,13 +261,13 @@ class DecisionEngine:
 
         spread_penalty = 0.02 * min(2.0, max(0.0, spread_ratio - 1.0))
         if is_fx:
-            base_safety_margin = 0.240  # Forex requires 57% win prob at 2.0R
+            base_safety_margin = 0.200  # Forex calibrated for tight XM Ultra Low spreads
         elif is_gold or is_crypto or is_jpy:
-            base_safety_margin = 0.265  # Gold/Crypto/JPY requires 60% win prob at 2.0R
+            base_safety_margin = 0.230  # Gold/Crypto/JPY calibrated for XM Ultra Low spreads
         elif is_micro_mode:
             base_safety_margin = 0.145  # Micro mode requires 48% win prob at 2.0R
         else:
-            base_safety_margin = 0.245
+            base_safety_margin = 0.220
 
         dynamic_kelly_p = kelly_base + base_safety_margin + spread_penalty
         floor_win_p = 0.48 if is_micro_mode else 0.50
@@ -288,8 +288,8 @@ class DecisionEngine:
             base_score = 65.0
             floor_score_opt = 62.0
         else:
-            base_score = 72.0 if is_fx else 68.0
-            floor_score_opt = 67.0 if is_fx else 65.0
+            base_score = 70.0 if is_fx else 66.0
+            floor_score_opt = 65.0 if is_fx else 62.0
 
         if not is_fx and ev >= 1.5 and rr_ratio >= 2.0:
             base_score = max(58.0, base_score - 4.0)
@@ -331,7 +331,7 @@ class DecisionEngine:
             min_sl_atr_mult = 0.45
             max_spread = spec.max_spread_pips
         else:  # Forex Majors
-            min_rr = 2.0  # Raised from 1.7 to ensure positive payoff after round-turn commissions
+            min_rr = 1.7  # Calibrated for XM Ultra Low tight spreads
             min_sl_atr_mult = 0.40
             max_spread = spec.max_spread_pips
 
@@ -358,24 +358,31 @@ class DecisionEngine:
             min_score = max(floor_score_opt, min(80.0, min_score))
 
         if is_index_asset:
-            min_score = max(min_score, 72.0)
+            min_score = max(min_score, 68.0)
         elif "BTC" in sym_name:
-            min_score = max(min_score, 78.0)
+            min_score = max(min_score, 72.0)
 
         # 4. Macro MTF Confluence Guard
         mtf_align = getattr(context, "mtf_alignment", {})
         h4_bias = mtf_align.get("H4", "NEUTRAL") if isinstance(mtf_align, dict) else "NEUTRAL"
         d1_bias = mtf_align.get("D1", "NEUTRAL") if isinstance(mtf_align, dict) else "NEUTRAL"
+        mom_ts = float(getattr(context.momentum, "trend_score", 0.0)) if hasattr(context, "momentum") else 0.0
         
         is_index_sym = getattr(spec, "asset_class", "") == "INDEX" or any(k in context.symbol.upper() for k in ["US500", "NAS100", "US30", "SPX", "NDX", "DJ"])
         is_crypto_sym = getattr(spec, "is_crypto", False) or (getattr(spec, "asset_class", "").upper() == "CRYPTO") or any(k in context.symbol.upper() for k in ["BTC", "ETH", "SOL"])
 
         mtf_counter_trend = False
         if is_index_sym or is_crypto_sym:
-            # Indices and Crypto: Strictly follow H4/D1 institutional macro flow (zero knife-catching)
-            if tentative_bias == "BUY" and (h4_bias == "BEARISH" or d1_bias == "BEARISH"):
+            # Indices and Crypto: Strictly follow H4/D1 institutional macro flow (zero knife-catching or counter-trend shorting)
+            if tentative_bias == "BUY" and (h4_bias == "BEARISH" or d1_bias == "BEARISH" or mom_ts <= -25.0):
                 mtf_counter_trend = True
-            elif tentative_bias == "SELL" and (h4_bias == "BULLISH" or d1_bias == "BULLISH"):
+            elif tentative_bias == "SELL" and (h4_bias == "BULLISH" or d1_bias == "BULLISH" or mom_ts >= 15.0):
+                mtf_counter_trend = True
+        elif is_jpy:
+            # JPY: Block buying falling knives when macro momentum is negative
+            if tentative_bias == "BUY" and (h4_bias == "BEARISH" or d1_bias == "BEARISH" or mom_ts <= -10.0):
+                mtf_counter_trend = True
+            elif tentative_bias == "SELL" and (h4_bias == "BULLISH" or d1_bias == "BULLISH" or mom_ts >= 15.0):
                 mtf_counter_trend = True
         else:
             if tentative_bias == "BUY" and (h4_bias == "BEARISH" or d1_bias == "BEARISH"):
@@ -428,10 +435,10 @@ class DecisionEngine:
         
 
 
-        if is_crypto or is_gold or is_oil_asset:
-            is_prime_session_valid = True
-        elif is_index_asset:
+        if is_index_asset:
             is_prime_session_valid = SessionEngine.is_index_prime_session(getattr(context, "timestamp", None))
+        elif is_crypto or is_gold or is_oil_asset:
+            is_prime_session_valid = True
         elif is_jpy:
             is_prime_session_valid = kz_active or (context.session.is_prime_session if hasattr(context, "session") and context.session else False) or (spread <= spec.typical_spread_pips * 1.5) or is_micro_mode or "SCALP" in t_style_check
         else:
@@ -464,15 +471,22 @@ class DecisionEngine:
         # 7. Crypto Macro Trend Filter: Prevent buying into severe macro bear downtrends or shorting macro bull runs
         crypto_macro_trend_valid = True
         if is_crypto:
-            if tentative_bias == "BUY":
-                if regime.primary_regime in (MarketRegime.STRONG_TREND_BEAR, MarketRegime.TREND_BEAR):
+            ts_val = float(getattr(context.momentum, "trend_score", 0.0)) if hasattr(context, "momentum") else 0.0
+            adx_val = float(getattr(context.momentum, "adx", 20.0)) if hasattr(context, "momentum") else 20.0
+            min_crypto_adx = 24.0
+            if adx_val < min_crypto_adx and not bool(getattr(context.structure, "choch", False)):
+                crypto_macro_trend_valid = False
+            elif confluence_count < 2 or ai_score < 75.0:
+                crypto_macro_trend_valid = False
+            elif tentative_bias == "BUY":
+                if regime.primary_regime in (MarketRegime.STRONG_TREND_BEAR, MarketRegime.TREND_BEAR) or ts_val <= -15.0:
                     has_reversal = bool(getattr(context.structure, "choch", False) and getattr(context.liquidity, "sweep_detected", False))
-                    if not (has_reversal and ai_score >= 78.0 and calibrated_win_p >= 0.60):
+                    if not (has_reversal and ai_score >= 82.0 and calibrated_win_p >= 0.65):
                         crypto_macro_trend_valid = False
             elif tentative_bias == "SELL":
-                if regime.primary_regime in (MarketRegime.STRONG_TREND_BULL, MarketRegime.TREND_BULL):
+                if regime.primary_regime in (MarketRegime.STRONG_TREND_BULL, MarketRegime.TREND_BULL) or ts_val >= 15.0:
                     has_reversal = bool(getattr(context.structure, "choch", False) and getattr(context.liquidity, "sweep_detected", False))
-                    if not (has_reversal and ai_score >= 78.0 and calibrated_win_p >= 0.60):
+                    if not (has_reversal and ai_score >= 82.0 and calibrated_win_p >= 0.65):
                         crypto_macro_trend_valid = False
 
         # 8. Forex False Breakout Guard: Prevent trading false breakout expansions on choppy Forex pairs
@@ -484,13 +498,19 @@ class DecisionEngine:
                 if not (adx_v >= 30.0 and bos_v):
                     forex_breakout_valid = False
 
-        # 9. Index Bull Run Counter-Trend Shorting Guard: Never short equity indices during bull runs without structural shift
+        # 9. Index Bull Run Counter-Trend Shorting Guard: Strictly protect equity indices from counter-trend shorting
         index_counter_trend_valid = True
         if is_index_asset:
-            if tentative_bias == "SELL" and regime.primary_regime in (MarketRegime.STRONG_TREND_BULL, MarketRegime.TREND_BULL):
+            ts_v = getattr(context.momentum, "trend_score", 0.0) if hasattr(context, "momentum") else 0.0
+            rsi_v = getattr(context.momentum, "rsi", 50.0) if hasattr(context, "momentum") else 50.0
+            if tentative_bias == "SELL":
                 d1_b = mtf_align.get("D1", "NEUTRAL") if isinstance(mtf_align, dict) else "NEUTRAL"
+                h4_b = mtf_align.get("H4", "NEUTRAL") if isinstance(mtf_align, dict) else "NEUTRAL"
                 has_rev = bool(getattr(context.structure, "choch", False) and getattr(context.structure, "choch_type", "") == "BEARISH")
-                if not (d1_b == "BEARISH" or has_rev):
+                if not ((d1_b == "BEARISH" or h4_b == "BEARISH") and has_rev and ts_v <= -30.0 and ai_score >= 85.0):
+                    index_counter_trend_valid = False
+            elif tentative_bias == "BUY":
+                if (ts_v <= -25.0 and not bool(getattr(context.structure, "choch", False))) or rsi_v >= 62.0:
                     index_counter_trend_valid = False
 
         # 10. Low-Beta FX (AUDUSD, USDCHF, NZDUSD, USDCAD) Macro Alignment Guard
@@ -498,9 +518,10 @@ class DecisionEngine:
         if any(k in sym_name for k in ["AUD", "CHF", "NZD", "CAD"]) and not is_gold:
             d1_b = mtf_align.get("D1", "NEUTRAL") if isinstance(mtf_align, dict) else "NEUTRAL"
             h4_b = mtf_align.get("H4", "NEUTRAL") if isinstance(mtf_align, dict) else "NEUTRAL"
-            if tentative_bias == "BUY" and (d1_b == "BEARISH" or h4_b == "BEARISH"):
+            ts_val = float(getattr(context.momentum, "trend_score", 0.0)) if hasattr(context, "momentum") else 0.0
+            if tentative_bias == "BUY" and (d1_b == "BEARISH" or h4_b == "BEARISH" or ts_val <= -15.0):
                 low_beta_fx_macro_valid = False
-            elif tentative_bias == "SELL" and (d1_b == "BULLISH" or h4_b == "BULLISH"):
+            elif tentative_bias == "SELL" and (d1_b == "BULLISH" or h4_b == "BULLISH" or ts_val >= 10.0):
                 low_beta_fx_macro_valid = False
 
         # 11. JPY Secular Bull/Carry Alignment: USDJPY is driven by US/JP rate differential; block counter-trend shorts unless D1 is decisively bearish
@@ -519,13 +540,13 @@ class DecisionEngine:
         # 12. High-Beta Crypto (SOLUSD) Confluence Guard
         sol_confluence_valid = True
         if "SOL" in sym_name:
-            if confluence_count < 2 or ai_score < 60.0:
+            if confluence_count < 2 or ai_score < 75.0:
                 sol_confluence_valid = False
 
         # 13. US30 Industrial Index Confluence Guard
         us30_confluence_valid = True
         if "US30" in sym_name:
-            if confluence_count < 2 or ai_score < 70.0:
+            if confluence_count < 2 or ai_score < 78.0:
                 us30_confluence_valid = False
 
         # 14. Institutional Order Flow Alignment Guard (Strictly preserves Gold)
@@ -904,15 +925,24 @@ class DecisionEngine:
         premium_discount_valid = True
         trend_score_val = getattr(context.momentum, "trend_score", 0.0) if hasattr(context, "momentum") else 0.0
         # Institutional ICT Smart Money Rule: Never BUY in Premium, Never SELL in Discount without exception unless extreme momentum (|trend_score| >= 65)
+        spec_eval = resolve_symbol(context.symbol)
+        sym_name_eval = str(context.symbol).upper()
+        is_crypto_sym = getattr(spec_eval, "is_crypto", False) or (getattr(spec_eval, "asset_class", "") == "CRYPTO") or any(k in sym_name_eval for k in ["BTC", "ETH", "SOL"])
+        is_index_sym = getattr(spec_eval, "asset_class", "") == "INDEX" or any(k in sym_name_eval for k in ["US500", "NAS100", "US30", "SPX", "NDX", "DJ"])
         if _is_forex(context.symbol):
             if tentative_bias == "BUY" and st.discount_premium_zone == "PREMIUM" and trend_score_val < 65:
                 premium_discount_valid = False
             elif tentative_bias == "SELL" and st.discount_premium_zone == "DISCOUNT" and trend_score_val > -65:
                 premium_discount_valid = False
-        elif "BTC" in context.symbol.upper():
-            if tentative_bias == "BUY" and st.discount_premium_zone == "PREMIUM" and trend_score_val < 55:
+        elif is_crypto_sym:
+            if tentative_bias == "BUY" and st.discount_premium_zone == "PREMIUM" and trend_score_val < 45:
                 premium_discount_valid = False
-            elif tentative_bias == "SELL" and st.discount_premium_zone == "DISCOUNT" and trend_score_val > -55:
+            elif tentative_bias == "SELL" and st.discount_premium_zone == "DISCOUNT" and trend_score_val > -45:
+                premium_discount_valid = False
+        elif is_index_sym:
+            if tentative_bias == "BUY" and st.discount_premium_zone == "PREMIUM" and trend_score_val < 40:
+                premium_discount_valid = False
+            elif tentative_bias == "SELL" and st.discount_premium_zone == "DISCOUNT" and trend_score_val > -40:
                 premium_discount_valid = False
         else:
             if tentative_bias == "BUY" and st.discount_premium_zone == "PREMIUM" and trend_score_val < 40:
@@ -968,22 +998,27 @@ class DecisionEngine:
         if gate_passed:
             gate_policy_decision = "PASS"
         else:
-            _hard_fails = [g for g in failing_reasons if g in HARD_GATES]
-            _soft_fails = [g for g in failing_reasons if g not in HARD_GATES]
-            if not _hard_fails and len(_soft_fails) <= self.gate_policy.max_soft_fail:
+            _gp_decision, _gp_gates = self.gate_policy.decide(failing_reasons, recent_win_rate=None)
+            if _gp_decision == "SOFTEN":
                 gate_policy_decision = "SOFTEN"
-                softened_gates = _soft_fails
+                softened_gates = _gp_gates
                 _penalty = self.gate_policy.confidence_penalty(softened_gates)
                 calibrated_win_p = max(0.05, calibrated_win_p - _penalty)
                 gate_passed = True
                 logger.info(f"[QualityGate] SOFTENED {len(softened_gates)} gates (confidence penalty: -{_penalty:.3f})")
+            elif _gp_decision == "PASS":
+                gate_policy_decision = "PASS"
+                gate_passed = True
             else:
                 gate_policy_decision = "BLOCK"
 
         if not is_mkt_open:
             decision_action = "NO_TRADE"
         elif gate_passed:
-            decision_action = "EXECUTE"
+            if tentative_bias in ["BUY", "SELL"]:
+                decision_action = "EXECUTE"
+            else:
+                decision_action = "NO_TRADE"
         elif tentative_bias in ["BUY", "SELL"] and len(failing_reasons) <= 2 and quality_gate.checks.get("Regime Viability", False):
             decision_action = "WAIT"
         else:

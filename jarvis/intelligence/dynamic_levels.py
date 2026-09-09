@@ -187,7 +187,12 @@ class DynamicRiskAndLevelsEngine:
                     min_target_rr = cfg.min_target_rr if not is_ranging else max(1.5, cfg.min_target_rr - 0.3)
                     asym_rr = cfg.asym_rr if not is_ranging else max(2.2, cfg.asym_rr - 0.6)
 
-                sl_dist = min(max_swing_sl, max(0.65 * atr if (is_index or is_forex) else 0.75 * atr, struct_sl_dist))
+                if is_crypto:
+                    min_floor_sl = max(1.35 * atr, 2.50 if "SOL" in sym_name else (35.0 if "ETH" in sym_name else 700.0))
+                else:
+                    min_floor_sl = 0.65 * atr if (is_index or is_forex) else 0.75 * atr
+
+                sl_dist = min(max_swing_sl, max(min_floor_sl, struct_sl_dist))
 
             sl_price = round(entry_price - sl_dist, digits)
             risk_dist = max(spec.pip_size * 5, abs(entry_price - sl_price))
@@ -298,7 +303,12 @@ class DynamicRiskAndLevelsEngine:
                     min_target_rr = cfg.min_target_rr if not is_ranging else max(1.5, cfg.min_target_rr - 0.3)
                     asym_rr = cfg.asym_rr if not is_ranging else max(2.2, cfg.asym_rr - 0.6)
 
-                sl_dist = min(max_swing_sl + spread_dist, max(0.65 * atr if (is_index or is_forex) else 0.75 * atr, struct_sl_dist))
+                if is_crypto:
+                    min_floor_sl = max(1.35 * atr, 2.50 if "SOL" in sym_name else (35.0 if "ETH" in sym_name else 700.0))
+                else:
+                    min_floor_sl = 0.65 * atr if (is_index or is_forex) else 0.75 * atr
+
+                sl_dist = min(max_swing_sl + spread_dist, max(min_floor_sl, struct_sl_dist))
 
             sl_price = round(entry_price + sl_dist, digits)
             risk_dist = max(spec.pip_size * 5, abs(sl_price - entry_price))

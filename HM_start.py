@@ -140,6 +140,11 @@ def _serveo_worker(port: int = 8501, custom_subdomain: str = "hm2026"):
                 if not line and proc.poll() is not None:
                     break
                 time.sleep(1.0)
+            try:
+                if proc.poll() is None:
+                    proc.terminate()
+            except Exception:
+                pass
             logger.warning("Serveo custom tunnel closed. Auto-reconnecting in 3s...")
             _TUNNEL_STATE["serveo_status"] = "RECONNECTING"
             time.sleep(3)
@@ -167,6 +172,7 @@ def _cloudflare_worker(port: int = 8501):
                 errors="replace"
             )
             _TUNNEL_STATE["cloudflare_proc"] = proc
+            rate_limited = False
             for _ in range(50):
                 line = proc.stdout.readline()
                 if not line:
@@ -174,6 +180,8 @@ def _cloudflare_worker(port: int = 8501):
                         break
                     time.sleep(0.1)
                     continue
+                if "429 Too Many Requests" in line or "1015" in line:
+                    rate_limited = True
                 m = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
                 if m:
                     url = m.group(0)
@@ -190,9 +198,15 @@ def _cloudflare_worker(port: int = 8501):
                 if not line and proc.poll() is not None:
                     break
                 time.sleep(1.0)
-            logger.warning("Cloudflare edge tunnel closed. Auto-reconnecting in 3s...")
+            try:
+                if proc.poll() is None:
+                    proc.terminate()
+            except Exception:
+                pass
+            backoff = 30 if rate_limited else 3
+            logger.warning(f"Cloudflare edge tunnel closed. Auto-reconnecting in {backoff}s...")
             _TUNNEL_STATE["cloudflare_status"] = "RECONNECTING"
-            time.sleep(3)
+            time.sleep(backoff)
         except Exception as e:
             logger.error(f"Cloudflare worker error: {e}. Reconnecting in 5s...")
             time.sleep(5)

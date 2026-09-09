@@ -21,6 +21,19 @@ HARD_GATES = {
     "Drawdown Safety Guard",
     "Margin Capacity Limit",
     "Regime Viability",
+    "Directional Bias",
+    "Macro MTF Alignment",
+    "Index Trend Alignment",
+    "Crypto Macro Trend Filter",
+    "Strategy Viable",
+    "Forex Breakout Guard",
+    "Low-Beta FX Macro Alignment",
+    "JPY Momentum Guard",
+    "SOL Confluence Guard",
+    "US30 Confluence Guard",
+    "Gold Trend Following Alignment",
+    "Premium/Discount Alignment",
+    "Trend Not Exhausted",
 }
 
 

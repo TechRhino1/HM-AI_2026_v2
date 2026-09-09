@@ -40,11 +40,11 @@ class LossCooldownManager:
             self.consecutive_wins = 0
             
         if self.consecutive_losses == 3:
+            self.cooldown_bars_remaining = 2
+            logger.info("LossCooldownManager: 3 consecutive losses. Pausing for 2 bars.")
+        elif self.consecutive_losses >= 5:
             self.cooldown_bars_remaining = 4
-            logger.info("LossCooldownManager: 3 consecutive losses. Pausing for 4 bars.")
-        elif self.consecutive_losses == 5:
-            self.cooldown_bars_remaining = 8
-            logger.info("LossCooldownManager: 5 consecutive losses. Pausing for 8 bars.")
+            logger.info("LossCooldownManager: 5 consecutive losses. Pausing for 4 bars.")
 
     def should_skip_trade(self, symbol: str = "") -> Tuple[bool, str]:
         """Check if we should skip the next trade.
@@ -52,19 +52,17 @@ class LossCooldownManager:
         if self.cooldown_bars_remaining > 0:
             return True, f"Cooldown active for {self.cooldown_bars_remaining} more bars."
             
-        # Max 3% daily drawdown
+        # Max 4% daily drawdown
         if self.peak_equity > 0:
             daily_dd = self.daily_pnl / self.peak_equity
-            if daily_dd <= -0.03:
-                return True, "Max daily drawdown (3%) reached."
+            if daily_dd <= -0.04:
+                return True, "Max daily drawdown (4%) reached."
                 
-        # Max 5 trades per day per symbol
-        if symbol and self.trades_today_by_symbol.get(symbol, 0) >= 5:
-            return True, f"Max 5 trades per day reached for symbol {symbol}."
-        elif not symbol and self.trades_today >= 5:
-            # Fallback if symbol isn't provided: limit total trades
-            # This handles cases where the caller uses the manager per-symbol implicitly
-            return True, "Max 5 trades per day reached."
+        # Max 8 trades per day per symbol
+        if symbol and self.trades_today_by_symbol.get(symbol, 0) >= 8:
+            return True, f"Max 8 trades per day reached for symbol {symbol}."
+        elif not symbol and self.trades_today >= 8:
+            return True, "Max 8 trades per day reached."
             
         return False, ""
 

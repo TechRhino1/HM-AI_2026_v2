@@ -43,8 +43,8 @@ class SymbolProfileConfig:
     pip_size: float = 0.01
     pip_value_per_lot: float = 0.01
     digits: int = 2
-    typical_spread_pips: float = 15.0
-    max_allowed_spread_pips: float = 50.0
+    typical_spread_pips: float = 1.0
+    max_allowed_spread_pips: float = 3.0
     commission_per_lot: float = 0.0  # XM Ultra Low Standard has $0.00 commission
     min_volume: float = 0.01
     volume_step: float = 0.01
@@ -61,31 +61,29 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         symbol="BTCUSD",
         canonical="BTCUSD",
         asset_class="CRYPTO",
-        # Bitcoin: Trend pullback alpha model (buying dips in bull runs, fading shallow rallies in bear legs).
         strategy_weights={
-            "TREND_PULLBACK": 4.0,
-            "BREAKOUT_EXPANSION": 0.0,
-            "TREND_FOLLOWING": 0.0,
+            "RANGE_MEAN_REVERSION": 5.0,
             "CHOCH_STRUCTURAL_REVERSAL": 0.0,
+            "TREND_PULLBACK": 0.0,
+            "TREND_FOLLOWING": 0.0,
+            "BREAKOUT_EXPANSION": 0.0,
             "LIQUIDITY_SWEEP_REVERSAL": 0.0,
-            "RANGE_MEAN_REVERSION": 0.0,
         },
-        banned_strategies=["LIQUIDITY_SWEEP_REVERSAL", "RANGE_MEAN_REVERSION", "TREND_FOLLOWING", "BREAKOUT_EXPANSION", "CHOCH_STRUCTURAL_REVERSAL"],
-        sl_atr_multiplier=2.50,  # 2.50 ATR buffer absorbs Bitcoin wick expansion
+        banned_strategies=["BREAKOUT_EXPANSION", "LIQUIDITY_SWEEP_REVERSAL", "TREND_FOLLOWING", "TREND_PULLBACK", "CHOCH_STRUCTURAL_REVERSAL"],
+        sl_atr_multiplier=3.20,
         min_target_rr=2.0,
-        asym_rr=3.5,
+        asym_rr=4.0,
         anti_wick_buffer_atr=0.50,
-        fast_cash_r=1.00,  # Bank 50% early at +1.00R
-        fast_cash_volume_pct=0.50,
-        be_trigger_r=1.00,
-        runner_trail_atr=2.40,
+        fast_cash_r=1.60,
+        fast_cash_volume_pct=0.40,
+        be_trigger_r=1.15,
+        runner_trail_atr=2.50,
         session_restriction=False,
-        # XM Ultra Low Standard Specs
         contract_size=1.0,
         pip_size=0.01,
         pip_value_per_lot=0.01,
         digits=2,
-        typical_spread_pips=1500.0,  # ~$15.00 on $60,000+ price (0.025%)
+        typical_spread_pips=1500.0,
         max_allowed_spread_pips=3000.0,
         commission_per_lot=0.0,
         min_volume=0.01,
@@ -97,31 +95,29 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         symbol="ETHUSD",
         canonical="ETHUSD",
         asset_class="CRYPTO",
-        # Ethereum: High beta to BTC, explosive expansion legs
         strategy_weights={
-            "BREAKOUT_EXPANSION": 3.5,
-            "TREND_FOLLOWING": 2.8,
-            "CHOCH_STRUCTURAL_REVERSAL": 2.0,
-            "TREND_PULLBACK": 1.6,
-            "LIQUIDITY_SWEEP_REVERSAL": 0.0,  # Banned: fading ETH sweeps is toxic
-            "RANGE_MEAN_REVERSION": 0.0,
+            "RANGE_MEAN_REVERSION": 5.0,
+            "CHOCH_STRUCTURAL_REVERSAL": 0.0,
+            "TREND_PULLBACK": 0.0,
+            "TREND_FOLLOWING": 0.0,
+            "BREAKOUT_EXPANSION": 0.0,
+            "LIQUIDITY_SWEEP_REVERSAL": 0.0,
         },
-        banned_strategies=["LIQUIDITY_SWEEP_REVERSAL", "RANGE_MEAN_REVERSION"],
-        sl_atr_multiplier=2.30,  # Tightened from 2.65 to elevate payoff ratio
+        banned_strategies=["BREAKOUT_EXPANSION", "LIQUIDITY_SWEEP_REVERSAL", "TREND_FOLLOWING", "TREND_PULLBACK", "CHOCH_STRUCTURAL_REVERSAL"],
+        sl_atr_multiplier=3.20,
         min_target_rr=2.0,
-        asym_rr=3.5,
+        asym_rr=4.0,
         anti_wick_buffer_atr=0.45,
-        fast_cash_r=1.00,  # Bank at +1.00R (up from 0.85R)
-        fast_cash_volume_pct=0.50,
-        be_trigger_r=1.00,
-        runner_trail_atr=2.40,
+        fast_cash_r=1.80,
+        fast_cash_volume_pct=0.35,
+        be_trigger_r=1.20,
+        runner_trail_atr=2.60,
         session_restriction=False,
-        # XM Ultra Low Standard Specs
         contract_size=1.0,
         pip_size=0.01,
         pip_value_per_lot=0.01,
         digits=2,
-        typical_spread_pips=120.0,  # ~$1.20 on $2,500+ price (0.05%)
+        typical_spread_pips=120.0,
         max_allowed_spread_pips=300.0,
         commission_per_lot=0.0,
         min_volume=0.01,
@@ -133,32 +129,29 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         symbol="SOLUSD",
         canonical="SOLUSD",
         asset_class="CRYPTO",
-        # Solana: High-beta crypto. Avoid breakout chases and trend following (whipsaw stopouts).
-        # Mean-reversion alpha model: fade range extremes and liquidity sweeps.
         strategy_weights={
-            "RANGE_MEAN_REVERSION": 3.8,
-            "LIQUIDITY_SWEEP_REVERSAL": 3.2,
-            "CHOCH_STRUCTURAL_REVERSAL": 0.0,
-            "TREND_FOLLOWING": 0.0,
+            "CHOCH_STRUCTURAL_REVERSAL": 5.0,
             "TREND_PULLBACK": 0.0,
+            "TREND_FOLLOWING": 0.0,
+            "LIQUIDITY_SWEEP_REVERSAL": 0.0,
+            "RANGE_MEAN_REVERSION": 0.0,
             "BREAKOUT_EXPANSION": 0.0,
         },
-        banned_strategies=["TREND_FOLLOWING", "TREND_PULLBACK", "BREAKOUT_EXPANSION", "CHOCH_STRUCTURAL_REVERSAL"],
-        sl_atr_multiplier=2.40,  # Calibrated breathing room prevents oversized losses
+        banned_strategies=["TREND_PULLBACK", "BREAKOUT_EXPANSION", "RANGE_MEAN_REVERSION", "LIQUIDITY_SWEEP_REVERSAL", "TREND_FOLLOWING"],
+        sl_atr_multiplier=3.20,
         min_target_rr=2.0,
-        asym_rr=3.2,
+        asym_rr=4.0,
         anti_wick_buffer_atr=0.45,
-        fast_cash_r=1.00,  # Bank 50% at +1.00R
-        fast_cash_volume_pct=0.50,
-        be_trigger_r=1.00,
-        runner_trail_atr=2.00,
+        fast_cash_r=1.40,
+        fast_cash_volume_pct=0.40,
+        be_trigger_r=1.10,
+        runner_trail_atr=2.50,
         session_restriction=False,
-        # XM Ultra Low Standard Specs
         contract_size=1.0,
         pip_size=0.01,
         pip_value_per_lot=0.01,
         digits=2,
-        typical_spread_pips=15.0,  # ~$0.15 on $130+ price (0.11%)
+        typical_spread_pips=15.0,
         max_allowed_spread_pips=50.0,
         commission_per_lot=0.0,
         min_volume=0.01,
@@ -167,33 +160,31 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
     ),
 
     # =========================================================================
-    # 2. EQUITY INDICES (XM Ultra Low Standard Specs: $0 Commission, 13:00-21:00 UTC)
+    # 2. EQUITY INDICES (XM Ultra Low Standard Specs: $0 Commission, 14:00-19:00 UTC)
     # =========================================================================
     "US500": SymbolProfileConfig(
         symbol="US500",
         canonical="US500",
         asset_class="INDEX",
-        # S&P 500: Institutional index liquidity sweep reversal model.
         strategy_weights={
-            "LIQUIDITY_SWEEP_REVERSAL": 4.0,
-            "CHOCH_STRUCTURAL_REVERSAL": 0.0,
+            "TREND_PULLBACK": 3.8,
+            "CHOCH_STRUCTURAL_REVERSAL": 3.0,
+            "LIQUIDITY_SWEEP_REVERSAL": 0.0,
+            "TREND_FOLLOWING": 1.0,
             "RANGE_MEAN_REVERSION": 0.0,
-            "TREND_PULLBACK": 0.0,
             "BREAKOUT_EXPANSION": 0.0,
-            "TREND_FOLLOWING": 0.0,
         },
-        banned_strategies=["TREND_FOLLOWING", "TREND_PULLBACK", "BREAKOUT_EXPANSION", "CHOCH_STRUCTURAL_REVERSAL", "RANGE_MEAN_REVERSION"],
-        sl_atr_multiplier=1.80,
-        min_target_rr=2.0,
-        asym_rr=3.2,
+        banned_strategies=["BREAKOUT_EXPANSION", "RANGE_MEAN_REVERSION", "LIQUIDITY_SWEEP_REVERSAL"],
+        sl_atr_multiplier=2.80,
+        min_target_rr=1.8,
+        asym_rr=3.6,
         anti_wick_buffer_atr=0.35,
-        fast_cash_r=1.00,
-        fast_cash_volume_pct=0.50,
+        fast_cash_r=1.30,
+        fast_cash_volume_pct=0.55,
         be_trigger_r=1.00,
-        runner_trail_atr=2.10,
+        runner_trail_atr=2.60,
         session_restriction=True,
-        allowed_utc_hours=(13, 21),  # Active US Cash & NY Overlap only (eliminates overnight chop)
-        # XM Ultra Low Standard Specs
+        allowed_utc_hours=(14, 19),
         contract_size=1.0,
         pip_size=0.1,
         pip_value_per_lot=1.0,
@@ -210,27 +201,25 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         symbol="NAS100",
         canonical="NAS100",
         asset_class="INDEX",
-        # Nasdaq 100: High-beta tech growth index. Trends cleanly during NY cash session (52.4% WR, 0.89 PF).
         strategy_weights={
-            "TREND_FOLLOWING": 2.8,
-            "BREAKOUT_EXPANSION": 2.6,
-            "LIQUIDITY_SWEEP_REVERSAL": 2.5,
-            "TREND_PULLBACK": 2.2,
-            "CHOCH_STRUCTURAL_REVERSAL": 2.0,
-            "RANGE_MEAN_REVERSION": 0.8,
+            "TREND_PULLBACK": 3.8,
+            "TREND_FOLLOWING": 2.5,
+            "CHOCH_STRUCTURAL_REVERSAL": 2.8,
+            "BREAKOUT_EXPANSION": 0.0,
+            "LIQUIDITY_SWEEP_REVERSAL": 0.0,
+            "RANGE_MEAN_REVERSION": 0.0,
         },
-        banned_strategies=[],
-        sl_atr_multiplier=1.75,
-        min_target_rr=2.2,
-        asym_rr=3.5,
+        banned_strategies=["LIQUIDITY_SWEEP_REVERSAL", "RANGE_MEAN_REVERSION", "BREAKOUT_EXPANSION"],
+        sl_atr_multiplier=2.80,
+        min_target_rr=2.0,
+        asym_rr=4.0,
         anti_wick_buffer_atr=0.35,
-        fast_cash_r=1.00,
-        fast_cash_volume_pct=0.50,
-        be_trigger_r=1.00,
-        runner_trail_atr=2.20,
+        fast_cash_r=1.80,
+        fast_cash_volume_pct=0.35,
+        be_trigger_r=1.20,
+        runner_trail_atr=2.60,
         session_restriction=True,
-        allowed_utc_hours=(13, 21),  # Active US Cash & NY Overlap only
-        # XM Ultra Low Standard Specs
+        allowed_utc_hours=(14, 19),
         contract_size=1.0,
         pip_size=1.0,
         pip_value_per_lot=1.0,
@@ -247,27 +236,25 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         symbol="US30",
         canonical="US30",
         asset_class="INDEX",
-        # Wall Street 30: Large point swings. Pure liquidity sweep & range mean-reversion profile
         strategy_weights={
-            "LIQUIDITY_SWEEP_REVERSAL": 3.8,
-            "RANGE_MEAN_REVERSION": 2.5,
+            "TREND_PULLBACK": 3.8,
             "CHOCH_STRUCTURAL_REVERSAL": 0.0,
-            "TREND_PULLBACK": 0.0,
-            "TREND_FOLLOWING": 0.0,
+            "TREND_FOLLOWING": 1.0,
+            "LIQUIDITY_SWEEP_REVERSAL": 0.0,
+            "RANGE_MEAN_REVERSION": 0.0,
             "BREAKOUT_EXPANSION": 0.0,
         },
-        banned_strategies=["TREND_PULLBACK", "TREND_FOLLOWING", "BREAKOUT_EXPANSION", "CHOCH_STRUCTURAL_REVERSAL"],
-        sl_atr_multiplier=2.50,  # Wide breathing room absorbs 250-400 pt industrial swings
-        min_target_rr=2.0,
-        asym_rr=3.2,
-        anti_wick_buffer_atr=0.45,
-        fast_cash_r=0.90,  # Bank 50% early at +0.90R
-        fast_cash_volume_pct=0.50,
-        be_trigger_r=0.90,
-        runner_trail_atr=2.00,
+        banned_strategies=["BREAKOUT_EXPANSION", "RANGE_MEAN_REVERSION", "LIQUIDITY_SWEEP_REVERSAL", "CHOCH_STRUCTURAL_REVERSAL"],
+        sl_atr_multiplier=2.80,
+        min_target_rr=1.8,
+        asym_rr=3.6,
+        anti_wick_buffer_atr=0.35,
+        fast_cash_r=1.30,
+        fast_cash_volume_pct=0.55,
+        be_trigger_r=1.00,
+        runner_trail_atr=2.60,
         session_restriction=True,
-        allowed_utc_hours=(13, 21),  # Active US Cash & NY Overlap only
-        # XM Ultra Low Standard Specs
+        allowed_utc_hours=(14, 19),
         contract_size=1.0,
         pip_size=1.0,
         pip_value_per_lot=1.0,
@@ -281,13 +268,12 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
     ),
 
     # =========================================================================
-    # 3. COMMODITIES — 100% UNTOUCHED AND PRESERVED INVARIANCE
+    # 3. COMMODITIES (XM Ultra Low Standard Specs: $0 Commission)
     # =========================================================================
     "XAUUSD": SymbolProfileConfig(
         symbol="XAUUSD",
         canonical="XAUUSD",
         asset_class="COMMODITY",
-        # GOLD: Proven alpha producer (+$3,014.70, 56.6% WR, 2.40 PF) — 100% PRESERVED
         strategy_weights={
             "LIQUIDITY_SWEEP_REVERSAL": 3.0,
             "CHOCH_STRUCTURAL_REVERSAL": 2.5,
@@ -297,23 +283,22 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
             "TREND_FOLLOWING": 1.8,
         },
         banned_strategies=[],
-        sl_atr_multiplier=2.80,  # Exact winning wide runner envelope
+        sl_atr_multiplier=2.80,
         min_target_rr=2.0,
         asym_rr=4.2,
         anti_wick_buffer_atr=0.35,
         fast_cash_r=1.00,
-        fast_cash_volume_pct=0.60,  # Bank 60% at 1.0R
+        fast_cash_volume_pct=0.60,
         be_trigger_r=1.00,
         runner_trail_atr=2.60,
         session_restriction=False,
-        # Standard Commodity specs
         contract_size=100.0,
-        pip_size=0.01,
-        pip_value_per_lot=1.0,
+        pip_size=0.1,
+        pip_value_per_lot=10.0,
         digits=2,
         typical_spread_pips=2.0,
         max_allowed_spread_pips=5.0,
-        commission_per_lot=5.0,  # 100% UNCHANGED
+        commission_per_lot=0.0,
         min_volume=0.01,
         volume_step=0.01,
         margin_pct=0.1
@@ -323,7 +308,6 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         symbol="WTI",
         canonical="WTI",
         asset_class="COMMODITY",
-        # Crude Oil: (+$469.20, 55.9% WR, 1.19 PF) — PRESERVED
         strategy_weights={
             "LIQUIDITY_SWEEP_REVERSAL": 2.4,
             "TREND_PULLBACK": 2.2,
@@ -348,52 +332,85 @@ SYMBOL_PROFILES: Dict[str, SymbolProfileConfig] = {
         digits=2,
         typical_spread_pips=3.0,
         max_allowed_spread_pips=8.0,
-        commission_per_lot=5.0,
+        commission_per_lot=0.0,
         min_volume=0.01,
         volume_step=0.01,
         margin_pct=0.2
     ),
 
     # =========================================================================
-    # 4. FOREX MAJORS
+    # 4. FOREX MAJORS & CROSSES (XM Ultra Low Standard Specs: $0 Commission)
     # =========================================================================
     "EURUSD": SymbolProfileConfig(
         symbol="EURUSD", canonical="EURUSD", asset_class="FOREX",
-        strategy_weights={"RANGE_MEAN_REVERSION": 2.6, "LIQUIDITY_SWEEP_REVERSAL": 2.4, "CHOCH_STRUCTURAL_REVERSAL": 2.0, "TREND_PULLBACK": 1.8, "TREND_FOLLOWING": 0.0, "BREAKOUT_EXPANSION": 0.0},
-        banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING"], sl_atr_multiplier=1.80, min_target_rr=2.0, asym_rr=3.2,
-        fast_cash_r=1.00, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=1.80,
+        strategy_weights={"RANGE_MEAN_REVERSION": 3.8, "CHOCH_STRUCTURAL_REVERSAL": 0.0, "LIQUIDITY_SWEEP_REVERSAL": 0.0, "TREND_PULLBACK": 0.0, "TREND_FOLLOWING": 0.0, "BREAKOUT_EXPANSION": 0.0},
+        banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING", "TREND_PULLBACK", "LIQUIDITY_SWEEP_REVERSAL", "CHOCH_STRUCTURAL_REVERSAL"], sl_atr_multiplier=2.60, min_target_rr=1.7, asym_rr=3.5,
+        fast_cash_r=1.30, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=2.60,
         session_restriction=True, allowed_utc_hours=(7, 18), contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0, digits=5,
-        typical_spread_pips=0.8, max_allowed_spread_pips=2.5, commission_per_lot=0.0, margin_pct=0.1
+        typical_spread_pips=0.7, max_allowed_spread_pips=2.0, commission_per_lot=0.0, margin_pct=0.1
     ),
     "GBPUSD": SymbolProfileConfig(
         symbol="GBPUSD", canonical="GBPUSD", asset_class="FOREX",
-        strategy_weights={"TREND_PULLBACK": 3.5, "RANGE_MEAN_REVERSION": 2.5, "CHOCH_STRUCTURAL_REVERSAL": 2.0, "LIQUIDITY_SWEEP_REVERSAL": 0.0, "TREND_FOLLOWING": 0.0, "BREAKOUT_EXPANSION": 0.0},
-        banned_strategies=["BREAKOUT_EXPANSION", "LIQUIDITY_SWEEP_REVERSAL", "TREND_FOLLOWING"], sl_atr_multiplier=1.80, min_target_rr=2.0, asym_rr=3.2,
-        fast_cash_r=1.00, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=1.80,
+        strategy_weights={"TREND_PULLBACK": 3.5, "CHOCH_STRUCTURAL_REVERSAL": 2.8, "LIQUIDITY_SWEEP_REVERSAL": 2.2, "RANGE_MEAN_REVERSION": 1.8, "TREND_FOLLOWING": 0.0, "BREAKOUT_EXPANSION": 0.0},
+        banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING"], sl_atr_multiplier=2.60, min_target_rr=1.7, asym_rr=3.5,
+        fast_cash_r=1.30, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=2.60,
         session_restriction=True, allowed_utc_hours=(7, 18), contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0, digits=5,
-        typical_spread_pips=1.0, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
+        typical_spread_pips=0.9, max_allowed_spread_pips=2.5, commission_per_lot=0.0, margin_pct=0.1
     ),
     "USDJPY": SymbolProfileConfig(
         symbol="USDJPY", canonical="USDJPY", asset_class="FOREX",
-        strategy_weights={"RANGE_MEAN_REVERSION": 3.6, "LIQUIDITY_SWEEP_REVERSAL": 3.0, "CHOCH_STRUCTURAL_REVERSAL": 2.2, "TREND_PULLBACK": 0.0, "TREND_FOLLOWING": 0.0, "BREAKOUT_EXPANSION": 0.0},
-        banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING", "TREND_PULLBACK"], sl_atr_multiplier=1.80, min_target_rr=2.0, asym_rr=3.2, fast_cash_r=1.00, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=1.60,
+        strategy_weights={"CHOCH_STRUCTURAL_REVERSAL": 3.5, "LIQUIDITY_SWEEP_REVERSAL": 2.8, "TREND_FOLLOWING": 2.2, "TREND_PULLBACK": 0.0, "RANGE_MEAN_REVERSION": 0.0, "BREAKOUT_EXPANSION": 0.0},
+        banned_strategies=["BREAKOUT_EXPANSION", "RANGE_MEAN_REVERSION", "TREND_PULLBACK"], sl_atr_multiplier=2.80, min_target_rr=1.7, asym_rr=3.5,
+        fast_cash_r=1.30, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=2.60,
         session_restriction=False, contract_size=100_000.0, pip_size=0.01, pip_value_per_lot=6.80, digits=3,
-        typical_spread_pips=0.9, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
+        typical_spread_pips=0.8, max_allowed_spread_pips=2.5, commission_per_lot=0.0, margin_pct=0.1
     ),
     "AUDUSD": SymbolProfileConfig(
         symbol="AUDUSD", canonical="AUDUSD", asset_class="FOREX",
-        strategy_weights={"CHOCH_STRUCTURAL_REVERSAL": 3.5, "RANGE_MEAN_REVERSION": 2.5, "TREND_PULLBACK": 2.0, "LIQUIDITY_SWEEP_REVERSAL": 0.0, "TREND_FOLLOWING": 0.0, "BREAKOUT_EXPANSION": 0.0},
-        banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING", "LIQUIDITY_SWEEP_REVERSAL"], sl_atr_multiplier=1.80, min_target_rr=2.0, asym_rr=3.2,
-        fast_cash_r=1.00, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=1.80,
+        strategy_weights={"CHOCH_STRUCTURAL_REVERSAL": 3.5, "RANGE_MEAN_REVERSION": 3.0, "LIQUIDITY_SWEEP_REVERSAL": 2.8, "TREND_PULLBACK": 0.0, "TREND_FOLLOWING": 0.0, "BREAKOUT_EXPANSION": 0.0},
+        banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING", "TREND_PULLBACK"], sl_atr_multiplier=2.60, min_target_rr=1.7, asym_rr=3.5,
+        fast_cash_r=1.30, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=2.60,
         session_restriction=False, contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0, digits=5,
-        typical_spread_pips=1.0, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
+        typical_spread_pips=0.9, max_allowed_spread_pips=2.5, commission_per_lot=0.0, margin_pct=0.1
     ),
     "USDCHF": SymbolProfileConfig(
         symbol="USDCHF", canonical="USDCHF", asset_class="FOREX",
-        strategy_weights={"LIQUIDITY_SWEEP_REVERSAL": 3.8, "RANGE_MEAN_REVERSION": 2.5, "CHOCH_STRUCTURAL_REVERSAL": 2.0, "TREND_PULLBACK": 0.0, "TREND_FOLLOWING": 0.0, "BREAKOUT_EXPANSION": 0.0},
-        banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING", "TREND_PULLBACK"], sl_atr_multiplier=1.80, min_target_rr=2.0, asym_rr=3.2,
-        fast_cash_r=1.00, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=1.80,
+        strategy_weights={"CHOCH_STRUCTURAL_REVERSAL": 3.8, "RANGE_MEAN_REVERSION": 0.0, "LIQUIDITY_SWEEP_REVERSAL": 0.0, "TREND_PULLBACK": 0.0, "TREND_FOLLOWING": 0.0, "BREAKOUT_EXPANSION": 0.0},
+        banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING", "TREND_PULLBACK", "LIQUIDITY_SWEEP_REVERSAL", "RANGE_MEAN_REVERSION"], sl_atr_multiplier=2.60, min_target_rr=1.7, asym_rr=3.5,
+        fast_cash_r=1.30, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=2.60,
         session_restriction=True, allowed_utc_hours=(7, 18), contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0, digits=5,
+        typical_spread_pips=1.1, max_allowed_spread_pips=2.5, commission_per_lot=0.0, margin_pct=0.1
+    ),
+    "USDCAD": SymbolProfileConfig(
+        symbol="USDCAD", canonical="USDCAD", asset_class="FOREX",
+        strategy_weights={"CHOCH_STRUCTURAL_REVERSAL": 3.2, "TREND_PULLBACK": 2.8, "TREND_FOLLOWING": 2.2, "RANGE_MEAN_REVERSION": 1.8, "LIQUIDITY_SWEEP_REVERSAL": 1.5, "BREAKOUT_EXPANSION": 0.0},
+        banned_strategies=["BREAKOUT_EXPANSION"], sl_atr_multiplier=2.60, min_target_rr=1.7, asym_rr=3.5,
+        fast_cash_r=1.30, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=2.60,
+        session_restriction=True, allowed_utc_hours=(7, 20), contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=7.50, digits=5,
+        typical_spread_pips=1.1, max_allowed_spread_pips=2.5, commission_per_lot=0.0, margin_pct=0.1
+    ),
+    "NZDUSD": SymbolProfileConfig(
+        symbol="NZDUSD", canonical="NZDUSD", asset_class="FOREX",
+        strategy_weights={"CHOCH_STRUCTURAL_REVERSAL": 3.2, "RANGE_MEAN_REVERSION": 2.8, "TREND_PULLBACK": 2.2, "LIQUIDITY_SWEEP_REVERSAL": 1.8, "TREND_FOLLOWING": 0.0, "BREAKOUT_EXPANSION": 0.0},
+        banned_strategies=["BREAKOUT_EXPANSION", "TREND_FOLLOWING"], sl_atr_multiplier=2.60, min_target_rr=1.7, asym_rr=3.5,
+        fast_cash_r=1.30, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=2.60,
+        session_restriction=False, contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0, digits=5,
+        typical_spread_pips=1.2, max_allowed_spread_pips=2.5, commission_per_lot=0.0, margin_pct=0.1
+    ),
+    "EURJPY": SymbolProfileConfig(
+        symbol="EURJPY", canonical="EURJPY", asset_class="FOREX",
+        strategy_weights={"CHOCH_STRUCTURAL_REVERSAL": 3.0, "TREND_PULLBACK": 2.8, "TREND_FOLLOWING": 2.4, "LIQUIDITY_SWEEP_REVERSAL": 1.8, "RANGE_MEAN_REVERSION": 0.0, "BREAKOUT_EXPANSION": 0.0},
+        banned_strategies=["BREAKOUT_EXPANSION", "RANGE_MEAN_REVERSION"], sl_atr_multiplier=2.60, min_target_rr=1.7, asym_rr=3.5,
+        fast_cash_r=1.30, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=2.60,
+        session_restriction=False, contract_size=100_000.0, pip_size=0.01, pip_value_per_lot=6.80, digits=3,
+        typical_spread_pips=1.0, max_allowed_spread_pips=2.5, commission_per_lot=0.0, margin_pct=0.1
+    ),
+    "GBPJPY": SymbolProfileConfig(
+        symbol="GBPJPY", canonical="GBPJPY", asset_class="FOREX",
+        strategy_weights={"TREND_PULLBACK": 3.2, "CHOCH_STRUCTURAL_REVERSAL": 2.8, "TREND_FOLLOWING": 2.4, "BREAKOUT_EXPANSION": 0.0, "RANGE_MEAN_REVERSION": 0.0, "LIQUIDITY_SWEEP_REVERSAL": 0.0},
+        banned_strategies=["BREAKOUT_EXPANSION", "RANGE_MEAN_REVERSION", "LIQUIDITY_SWEEP_REVERSAL"], sl_atr_multiplier=2.60, min_target_rr=1.7, asym_rr=3.5,
+        fast_cash_r=1.30, fast_cash_volume_pct=0.50, be_trigger_r=1.00, runner_trail_atr=2.60,
+        session_restriction=False, contract_size=100_000.0, pip_size=0.01, pip_value_per_lot=6.80, digits=3,
         typical_spread_pips=1.2, max_allowed_spread_pips=3.0, commission_per_lot=0.0, margin_pct=0.1
     ),
 }
@@ -404,8 +421,8 @@ _ALIAS_TO_CANONICAL: Dict[str, str] = {
     "BTCUSD#": "BTCUSD", "BTCUSD.I#": "BTCUSD", "BTCUSD.I": "BTCUSD", "BITCOIN": "BTCUSD",
     "ETHUSD#": "ETHUSD", "ETHUSD.I#": "ETHUSD", "ETHEREUM": "ETHUSD", "ETH": "ETHUSD",
     "SOLUSD#": "SOLUSD", "SOLUSD.I#": "SOLUSD", "SOLANA": "SOLUSD", "SOL": "SOLUSD",
-    "US500#": "US500", "SPX500": "US500", "SP500": "US500", "US500.I#": "US500",
-    "NAS100#": "NAS100", "USTECH": "NAS100", "NDX100": "NAS100", "US100": "NAS100",
+    "US500#": "US500", "SPX500": "US500", "SP500": "US500", "US500.I#": "US500", "US500CASH#": "US500",
+    "NAS100#": "NAS100", "USTECH": "NAS100", "NDX100": "NAS100", "US100": "NAS100", "US100CASH#": "NAS100",
     "US30#": "US30", "DJ30": "US30", "WALLSTREET": "US30", "US30CASH#": "US30",
     "USOIL": "WTI", "OIL": "WTI", "CRUDE": "WTI", "USOIL.I#": "WTI", "OIL.I#": "WTI", "CL": "WTI", "OILCASH#": "WTI",
     "EURUSD#": "EURUSD", "EURUSD.I#": "EURUSD",
@@ -413,6 +430,10 @@ _ALIAS_TO_CANONICAL: Dict[str, str] = {
     "USDJPY#": "USDJPY", "USDJPY.I#": "USDJPY",
     "AUDUSD#": "AUDUSD", "AUDUSD.I#": "AUDUSD",
     "USDCHF#": "USDCHF", "USDCHF.I#": "USDCHF",
+    "USDCAD#": "USDCAD", "USDCAD.I#": "USDCAD",
+    "NZDUSD#": "NZDUSD", "NZDUSD.I#": "NZDUSD",
+    "EURJPY#": "EURJPY", "EURJPY.I#": "EURJPY",
+    "GBPJPY#": "GBPJPY", "GBPJPY.I#": "GBPJPY",
 }
 
 

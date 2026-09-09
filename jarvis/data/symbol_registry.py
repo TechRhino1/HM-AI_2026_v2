@@ -33,31 +33,31 @@ _REGISTRY: Dict[str, SymbolSpec] = {
     "EURUSD": SymbolSpec(
         canonical="EURUSD", asset_class="FOREX",
         contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0,
-        typical_spread_pips=1.2, max_spread_pips=3.0,
+        typical_spread_pips=0.7, max_spread_pips=2.0,
         typical_atr_pct=0.4, margin_pct=0.1, digits=5
     ),
     "GBPUSD": SymbolSpec(
         canonical="GBPUSD", asset_class="FOREX",
         contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0,
-        typical_spread_pips=1.5, max_spread_pips=4.0,
+        typical_spread_pips=0.9, max_spread_pips=2.5,
         typical_atr_pct=0.5, margin_pct=0.1, digits=5
     ),
     "USDJPY": SymbolSpec(
         canonical="USDJPY", asset_class="FOREX",
         contract_size=100_000.0, pip_size=0.01, pip_value_per_lot=6.80,
-        typical_spread_pips=1.0, max_spread_pips=3.0,
+        typical_spread_pips=0.8, max_spread_pips=2.5,
         typical_atr_pct=0.4, margin_pct=0.1, digits=3, is_jpy_quote=True
     ),
     "AUDUSD": SymbolSpec(
         canonical="AUDUSD", asset_class="FOREX",
         contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0,
-        typical_spread_pips=1.4, max_spread_pips=3.5,
+        typical_spread_pips=0.9, max_spread_pips=2.5,
         typical_atr_pct=0.5, margin_pct=0.1, digits=5
     ),
     "USDCAD": SymbolSpec(
         canonical="USDCAD", asset_class="FOREX",
         contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=7.50,
-        typical_spread_pips=1.5, max_spread_pips=4.0,
+        typical_spread_pips=1.1, max_spread_pips=2.5,
         typical_atr_pct=0.4, margin_pct=0.1, digits=5
     ),
     "BTCUSD": SymbolSpec(
@@ -105,25 +105,25 @@ _REGISTRY: Dict[str, SymbolSpec] = {
     "USDCHF": SymbolSpec(
         canonical="USDCHF", asset_class="FOREX",
         contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0,
-        typical_spread_pips=1.4, max_spread_pips=3.5,
+        typical_spread_pips=1.1, max_spread_pips=2.5,
         typical_atr_pct=0.4, margin_pct=0.1, digits=5
     ),
     "NZDUSD": SymbolSpec(
         canonical="NZDUSD", asset_class="FOREX",
         contract_size=100_000.0, pip_size=0.0001, pip_value_per_lot=10.0,
-        typical_spread_pips=1.5, max_spread_pips=3.5,
+        typical_spread_pips=1.2, max_spread_pips=2.5,
         typical_atr_pct=0.5, margin_pct=0.1, digits=5
     ),
     "EURJPY": SymbolSpec(
         canonical="EURJPY", asset_class="FOREX",
         contract_size=100_000.0, pip_size=0.01, pip_value_per_lot=6.80,
-        typical_spread_pips=1.2, max_spread_pips=3.5,
+        typical_spread_pips=1.0, max_spread_pips=2.5,
         typical_atr_pct=0.5, margin_pct=0.1, digits=3, is_jpy_quote=True
     ),
     "GBPJPY": SymbolSpec(
         canonical="GBPJPY", asset_class="FOREX",
         contract_size=100_000.0, pip_size=0.01, pip_value_per_lot=6.80,
-        typical_spread_pips=1.5, max_spread_pips=4.0,
+        typical_spread_pips=1.2, max_spread_pips=3.0,
         typical_atr_pct=0.6, margin_pct=0.1, digits=3, is_jpy_quote=True
     ),
 }

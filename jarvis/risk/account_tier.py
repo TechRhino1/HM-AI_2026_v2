@@ -55,8 +55,8 @@ def get_effective_min_ev(equity: float, planned_risk_dollars: float) -> float:
     if eq < 100.0:
         return max(0.01, prd * 0.05)
     elif eq < 500.0:
-        return max(0.05, prd * 0.15)
+        return max(0.05, prd * 0.10)
     elif eq < 1000.0:
-        return max(0.15, prd * 0.30)
+        return max(0.10, prd * 0.20)
     else:
-        return max(0.50, prd * 0.50)
+        return max(0.25, prd * 0.25)

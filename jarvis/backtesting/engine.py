@@ -37,13 +37,9 @@ class BacktestEngine:
         self.risk_engine = RiskEngine(max_risk_per_trade_pct=risk_per_trade_pct, is_backtest=True)
 
     def _calc_commission(self, symbol: str, lots: float, price: float = 0.0) -> float:
-        sym_upper = symbol.upper()
-        # Commodities (Gold & WTI): $5.00/lot standard (100% UNCHANGED)
-        if any(k in sym_upper for k in ["XAU", "GOLD", "WTI", "OIL"]):
-            return round(lots * self.commission_per_lot, 4)
         cfg = get_symbol_profile_config(symbol)
-        # XM Ultra Low Standard specifications: $0.00 commission for Crypto, Indices, Forex
-        return round(lots * cfg.commission_per_lot, 4)
+        comm_per_lot = getattr(cfg, "commission_per_lot", 0.0)
+        return round(lots * comm_per_lot, 4)
 
     def run_backtest(
         self,
@@ -84,6 +80,7 @@ class BacktestEngine:
         is_crypto = spec.is_crypto or ("BTC" in sym_upper)
         is_gold = ("XAU" in sym_upper) or ("GOLD" in sym_upper) or (getattr(spec, "asset_class", "") == "COMMODITY")
         is_fx = getattr(spec, "asset_class", "").upper() == "FOREX" and not is_jpy
+        cfg = get_symbol_profile_config(symbol)
         rejection_stats = {}
 
         # Pre-compute Full Multi-Timeframe (H4 & D1) Resamplings Once Upfront (Before the Bar Loop)
@@ -163,9 +160,17 @@ class BacktestEngine:
                 if risk_dist <= 0:
                     risk_dist = max(0.001, abs(open_trade["entry"] - open_trade["sl"]))
 
-                # Master-Trader Stagnation Time Stop: Close at market if bars_held >= stag_limit and mfe < (risk_dist * 0.35)
-                stag_limit = 16 if is_crypto else 8
-                if open_trade["bars_held"] >= stag_limit and open_trade["mfe"] < (risk_dist * 0.35):
+                # Master-Trader Stagnation Time Stop: Dynamic regime-aware
+                regime_str = str(open_trade.get("regime", "")).upper()
+                base_stag = 24 if is_crypto else 16
+                if any(r in regime_str for r in ["RANGE", "CONSOLIDATION", "COMPRESSION"]):
+                    stag_limit = max(8, base_stag // 2)
+                elif any(r in regime_str for r in ["TREND", "BREAKOUT"]):
+                    stag_limit = int(base_stag * 1.25)
+                else:
+                    stag_limit = base_stag
+
+                if open_trade["bars_held"] >= stag_limit and open_trade["mfe"] < (risk_dist * 0.25):
                     exit_price = float(current_bar["close"])
                     pips = ((exit_price - open_trade["entry"]) if open_trade["type"] == "BUY" else (open_trade["entry"] - exit_price)) / spec.pip_size
                     pnl_raw = pips * spec.pip_value_per_lot * open_trade["lots"]
@@ -212,12 +217,12 @@ class BacktestEngine:
                         else:
                             open_trade["sl"] = min(open_trade["sl"], round(open_trade["entry"] - be_buffer, spec.digits))
 
-                # Master-Trader Stage 1 Fast Cash Lock: Bank 60% (Gold/Oil) or profile pct (others)
+                # Master-Trader Stage 1 Fast Cash Lock: Bank volume into realized cash if lots can be split
                 fast_cash_r = 1.00 if is_gold else cfg.fast_cash_r
                 fast_cash_dist = risk_dist * fast_cash_r
                 profit_floor_dist = max(spec.pip_size * 2.5, risk_dist * 0.10) if is_gold else max(spec.pip_size * 2.0, risk_dist * cfg.be_buffer_pct)
 
-                if not open_trade.get("partial_closed", False) and open_trade["lots"] >= 0.01:
+                if not open_trade.get("partial_closed", False):
                     is_target_hit = False
                     partial_exit_p = 0.0
                     if open_trade["type"] == "BUY" and high >= (open_trade["entry"] + fast_cash_dist):
@@ -228,27 +233,22 @@ class BacktestEngine:
                         partial_exit_p = open_trade["entry"] - fast_cash_dist
 
                     if is_target_hit:
-                        # Bank volume into realized cash: 60% for Gold/Oil, profile pct for others
                         partial_ratio = 0.60 if is_gold else cfg.fast_cash_volume_pct
                         partial_lots = round(open_trade["lots"] * partial_ratio, 2)
-                        if partial_lots >= 0.01 and open_trade["lots"] > partial_lots:
+                        # Only split lots if remaining lots is at least minimum 0.01 volume
+                        if partial_lots >= 0.01 and (open_trade["lots"] - partial_lots) >= 0.01:
                             pips_p = ((partial_exit_p - open_trade["entry"]) if open_trade["type"] == "BUY" else (open_trade["entry"] - partial_exit_p)) / spec.pip_size
                             comm_p = self._calc_commission(symbol, partial_lots, partial_exit_p)
                             pnl_p = (pips_p * spec.pip_value_per_lot * partial_lots) - comm_p
                             balance += pnl_p
                             open_trade["realized_pnl"] = open_trade.get("realized_pnl", 0.0) + pnl_p
                             open_trade["lots"] = round(open_trade["lots"] - partial_lots, 2)
-                        elif partial_lots >= 0.01:
-                            pips_p = ((partial_exit_p - open_trade["entry"]) if open_trade["type"] == "BUY" else (open_trade["entry"] - partial_exit_p)) / spec.pip_size
-                            comm_p = self._calc_commission(symbol, open_trade["lots"], partial_exit_p)
-                            pnl_p = (pips_p * spec.pip_value_per_lot * open_trade["lots"]) - comm_p
-                            balance += pnl_p
-                            open_trade["realized_pnl"] = open_trade.get("realized_pnl", 0.0) + pnl_p
 
                         open_trade["partial_closed"] = True
+                        open_trade["partial_close_bar"] = open_trade.get("bars_held", 0)
                         open_trade["be_locked"] = True
 
-                        # Advance remaining SL to Entry + profit_floor_dist (guaranteed risk-free trade)
+                        # Advance SL to Entry + profit_floor_dist (guaranteed risk-free trade)
                         if open_trade["type"] == "BUY":
                             runner_floor_sl = round(open_trade["entry"] + profit_floor_dist, spec.digits)
                             open_trade["sl"] = max(open_trade["sl"], runner_floor_sl)
@@ -256,22 +256,44 @@ class BacktestEngine:
                             runner_floor_sl = round(open_trade["entry"] - profit_floor_dist, spec.digits)
                             open_trade["sl"] = min(open_trade["sl"], runner_floor_sl)
 
-                # Stage 2 (Dynamic Runner Trail): Trail remaining runner using runner_trail_distance_atr
-                if open_trade.get("partial_closed", False):
-                    default_trail = 2.6 if is_gold else cfg.runner_trail_atr
-                    trail_mult = open_trade.get("runner_trail_distance_atr", 1.2) if is_gold else default_trail
+                # Stage 2 (Dynamic ATR Trailing & Multi-Tiered Profit Ratchet)
+                # Gives trades proper breathing room so normal pullbacks don't clip runners before major expansions
+                if open_trade.get("be_locked", False) or favorable >= (risk_dist * 1.25):
+                    trail_mult = getattr(cfg, "runner_trail_atr", 2.20)
                     trail_dist = atr * trail_mult
-                    runner_lock_r = 1.8 if (is_fx or is_jpy) else 2.5
+
+                    is_comm_or_gold = getattr(spec, "asset_class", "") == "COMMODITY" or "XAU" in symbol.upper() or "WTI" in symbol.upper()
+                    r1_lock = 0.20 if is_comm_or_gold else 0.05
                     if open_trade["type"] == "BUY":
-                        new_sl = round(high - trail_dist, spec.digits)
-                        if favorable >= (risk_dist * runner_lock_r):
-                            new_sl = max(new_sl, round(open_trade["entry"] + (risk_dist * 0.80), spec.digits))
+                        new_sl = open_trade["sl"]
+                        # ATR dynamic trail from high
+                        atr_trail = round(high - trail_dist, spec.digits)
+                        if atr_trail > open_trade["entry"]:
+                            new_sl = max(new_sl, atr_trail)
+
+                        # Milestone locks:
+                        if favorable >= (risk_dist * 3.00):
+                            new_sl = max(new_sl, round(open_trade["entry"] + (risk_dist * 2.00), spec.digits))
+                        elif favorable >= (risk_dist * 2.00):
+                            new_sl = max(new_sl, round(open_trade["entry"] + (risk_dist * 1.00), spec.digits))
+                        elif favorable >= (risk_dist * 1.25):
+                            new_sl = max(new_sl, round(open_trade["entry"] + (risk_dist * r1_lock), spec.digits))
+
                         if new_sl > open_trade["sl"]:
                             open_trade["sl"] = new_sl
                     else:
-                        new_sl = round(low + trail_dist, spec.digits)
-                        if favorable >= (risk_dist * runner_lock_r):
-                            new_sl = min(new_sl, round(open_trade["entry"] - (risk_dist * 0.80), spec.digits))
+                        new_sl = open_trade["sl"]
+                        atr_trail = round(low + trail_dist, spec.digits)
+                        if atr_trail < open_trade["entry"]:
+                            new_sl = min(new_sl, atr_trail)
+
+                        if favorable >= (risk_dist * 3.00):
+                            new_sl = min(new_sl, round(open_trade["entry"] - (risk_dist * 2.00), spec.digits))
+                        elif favorable >= (risk_dist * 2.00):
+                            new_sl = min(new_sl, round(open_trade["entry"] - (risk_dist * 1.00), spec.digits))
+                        elif favorable >= (risk_dist * 1.25):
+                            new_sl = min(new_sl, round(open_trade["entry"] - (risk_dist * r1_lock), spec.digits))
+
                         if new_sl < open_trade["sl"]:
                             open_trade["sl"] = new_sl
 
@@ -281,20 +303,44 @@ class BacktestEngine:
                 result = ""
 
                 if open_trade["type"] == "BUY":
-                    if low <= open_trade["sl"]:
+                    sl_hit = low <= open_trade["sl"]
+                    tp_hit = high >= open_trade["tp"]
+                    if sl_hit and tp_hit:
+                        open_p = float(current_bar["open"])
+                        if abs(open_p - open_trade["tp"]) <= abs(open_p - open_trade["sl"]):
+                            exit_price = open_trade["tp"]
+                            result = "TP"
+                            closed = True
+                        else:
+                            exit_price = open_trade["sl"] - actual_slippage_delta
+                            result = "BE/TRAIL_SL" if (open_trade.get("partial_closed") or open_trade.get("be_locked")) else "SL"
+                            closed = True
+                    elif sl_hit:
                         exit_price = open_trade["sl"] - actual_slippage_delta
                         result = "BE/TRAIL_SL" if (open_trade.get("partial_closed") or open_trade.get("be_locked")) else "SL"
                         closed = True
-                    elif high >= open_trade["tp"]:
+                    elif tp_hit:
                         exit_price = open_trade["tp"]
                         result = "TP"
                         closed = True
                 elif open_trade["type"] == "SELL":
-                    if high >= open_trade["sl"]:
+                    sl_hit = high >= open_trade["sl"]
+                    tp_hit = low <= open_trade["tp"]
+                    if sl_hit and tp_hit:
+                        open_p = float(current_bar["open"])
+                        if abs(open_p - open_trade["tp"]) <= abs(open_p - open_trade["sl"]):
+                            exit_price = open_trade["tp"]
+                            result = "TP"
+                            closed = True
+                        else:
+                            exit_price = open_trade["sl"] + actual_slippage_delta
+                            result = "BE/TRAIL_SL" if (open_trade.get("partial_closed") or open_trade.get("be_locked")) else "SL"
+                            closed = True
+                    elif sl_hit:
                         exit_price = open_trade["sl"] + actual_slippage_delta
                         result = "BE/TRAIL_SL" if (open_trade.get("partial_closed") or open_trade.get("be_locked")) else "SL"
                         closed = True
-                    elif low <= open_trade["tp"]:
+                    elif tp_hit:
                         exit_price = open_trade["tp"]
                         result = "TP"
                         closed = True
@@ -360,16 +406,30 @@ class BacktestEngine:
                 tentative_bias = "BUY" if context.structure.bias == "BULLISH" else ("SELL" if context.structure.bias == "BEARISH" else ("SELL" if getattr(context.momentum, "trend_score", 0.0) < 0 else "BUY"))
                 analyst_reports, devil_report = self.analyst_cluster.run_all_parallel(context, regime, tentative_bias)
                 
-                # Fractional Kelly dynamic position sizing
+                # Fractional Kelly dynamic position sizing from trade history
                 planned_risk_pct = self.risk_per_trade_pct
-                size_mult = cooldown_mgr.get_position_size_multiplier(planned_risk_pct, balance, win_rate=0.58, payoff_ratio=1.5)
+                if len(trades) >= 5:
+                    recent_trades = trades[-20:]
+                    wins = [t for t in recent_trades if t.get("is_win", False)]
+                    wr = len(wins) / len(recent_trades) if recent_trades else 0.50
+                    avg_win = sum(t["pnl"] for t in wins) / len(wins) if wins else 0.0
+                    losses = [t for t in recent_trades if not t.get("is_win", False)]
+                    avg_loss = abs(sum(t["pnl"] for t in losses) / len(losses)) if losses else 1.0
+                    payoff = (avg_win / avg_loss) if avg_loss > 0 else 1.5
+                    size_mult = cooldown_mgr.get_position_size_multiplier(
+                        planned_risk_pct, balance,
+                        win_rate=max(0.35, min(0.75, wr)),
+                        payoff_ratio=max(1.0, min(3.0, payoff))
+                    )
+                else:
+                    size_mult = cooldown_mgr.get_position_size_multiplier(planned_risk_pct, balance, win_rate=0.50, payoff_ratio=1.5)
                 effective_risk_pct = max(0.20, planned_risk_pct * size_mult)
 
                 decision = self.decision_engine.evaluate(
                     context, regime, analyst_reports, devil_report, account_balance=balance, risk_per_trade_pct=effective_risk_pct, mtf_data=mtf_dict
                 )
 
-                if decision.decision == "EXECUTE":
+                if decision.decision == "EXECUTE" and decision.bias in ("BUY", "SELL"):
                     account_snap = AccountSnapshot(
                         login=1, server="Backtest", balance=balance, equity=balance, margin=0, free_margin=balance, margin_level=0, leverage=100
                     )
@@ -385,6 +445,8 @@ class BacktestEngine:
 
                     if auth_res["authorized"]:
                         entry_price = float(next_bar["open"])
+                        if decision.bias == "BUY":
+                            entry_price += spread_pips * spec.pip_size  # Ask = Bid + Spread
                         price_shift = entry_price - decision.entry_price
                         sl_price = decision.stop_loss + price_shift
                         tp_price = decision.take_profit + price_shift
@@ -419,8 +481,9 @@ class BacktestEngine:
                             "risk_dist": actual_risk_dist,
                             "realized_pnl": 0.0,
                             "partial_closed": False,
+                            "partial_close_bar": -1,
                             "strategy": decision.strategy,
-                            "regime": regime.primary_regime.value,
+                            "regime": regime.primary_regime.value if hasattr(regime.primary_regime, 'value') else str(regime.primary_regime),
                             "score": decision.model_confidence,
                             "planned_rr": decision.risk_reward_ratio,
                             "master_score": getattr(decision, "master_confluence_score", 0.0),
@@ -428,7 +491,7 @@ class BacktestEngine:
                             "mae": 0.0,
                             "first_target_price": getattr(decision, "first_target_price", None),
                             "first_target_volume_pct": getattr(decision, "first_target_volume_pct", 0.50),
-                            "runner_trail_distance_atr": getattr(decision, "runner_trail_distance_atr", 1.2)
+                            "runner_trail_distance_atr": 2.6 if is_gold else getattr(cfg, "runner_trail_atr", 2.0)
                         }
                     else:
                         auth_reason = auth_res.get("reason", "Risk Engine Auth Failed")

@@ -2,6 +2,7 @@
 JARVIS AI 3.0 — MT5 Client & Execution Gateway.
 Provides a thread-safe, timeout-guarded connection to MetaTrader 5 with automatic symbol resolution and retry mechanisms.
 """
+import os
 import time
 import logging
 import threading
@@ -37,9 +38,9 @@ class MT5Client:
 
 
     def init_connection(self) -> bool:
-        if self.mode == "paper":
+        if self.mode in ("paper", "backtest", "offline") or os.environ.get("JARVIS_BACKTEST_MODE") == "1":
             self.is_connected = True
-            logger.info("MT5Client running in simulated PAPER execution mode.")
+            logger.info("MT5Client running in simulated/offline execution mode.")
             return True
 
         if not MT5_AVAILABLE or mt5 is None:
